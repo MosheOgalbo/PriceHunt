@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PriceHunt.Api.Tests/PriceHunt.Api.Tests.csproj" />
+  <Project Path="PriceHunt.Api/PriceHunt.Api.csproj" />
+</Solution>

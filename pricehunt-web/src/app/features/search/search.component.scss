@@ -1,0 +1,40 @@
+:host { display: block; }
+.panel { padding: 24px; margin-bottom: 24px; border-radius: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 16px; }
+.wide { grid-column: 1 / -1; }
+.spacer { flex: 1; }
+.suppliers-head { display: flex; align-items: center; h3 { margin: 0; font-weight: 500; } }
+.supplier-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+.error { color: #b3261e; font-size: 13px; margin: 8px 0 0; }
+
+.status-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.count { color: #55607a; font-weight: 500; }
+.badge {
+  padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: #e8eaf6; color: #3949ab;
+  &[data-state='completed'] { background: #e6f4ea; color: #1e7e34; }
+  &[data-state='timedOut'] { background: #fff4e5; color: #b25e00; }
+  &[data-state='cancelled'], &[data-state='error'] { background: #fdecea; color: #b3261e; }
+}
+.pending { color: #6b7280; font-size: 13px; margin: 10px 0 0; }
+
+.board { position: relative; list-style: none; margin: 20px 0 0; padding: 0; transition: height 0.35s ease; }
+.row {
+  position: absolute; top: 0; inset-inline: 0; height: 64px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  background: #fff; border: 1px solid #e3e6ef; border-radius: 12px;
+  transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.3s, box-shadow 0.3s;
+  animation: enter 0.4s ease;
+  will-change: transform;
+  &.best { border-color: #2e9e5b; box-shadow: 0 4px 14px rgba(46, 158, 91, 0.15); }
+  &.failed { background: #fafafa; color: #8a8f9c; }
+}
+@keyframes enter { from { opacity: 0; } to { opacity: 1; } }
+
+.rank {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: #eef0fb; color: #3949ab; font-weight: 700;
+}
+.info { flex: 1; display: flex; flex-direction: column; small { color: #6b7280; } }
+.price { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 6px; }

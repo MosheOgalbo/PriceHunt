@@ -1,0 +1,97 @@
+<mat-card class="panel" appearance="outlined">
+  <form [formGroup]="form" (ngSubmit)="search()">
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>From location</mat-label>
+        <mat-icon matIconPrefix>trip_origin</mat-icon>
+        <input matInput formControlName="fromLocation" placeholder="e.g. Haifa" />
+        <mat-error>Required</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>To location</mat-label>
+        <mat-icon matIconPrefix>place</mat-icon>
+        <input matInput formControlName="toLocation" placeholder="e.g. Rotterdam" />
+        <mat-error>Required</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="wide">
+        <mat-label>From date – To date</mat-label>
+        <mat-date-range-input formGroupName="range" [rangePicker]="picker">
+          <input matStartDate formControlName="start" placeholder="From date" />
+          <input matEndDate formControlName="end" placeholder="To date" />
+        </mat-date-range-input>
+        <mat-datepicker-toggle matIconSuffix [for]="picker" />
+        <mat-date-range-picker #picker />
+        <mat-error>Select a date range</mat-error>
+      </mat-form-field>
+    </div>
+
+    <div class="suppliers-head">
+      <h3>Suppliers</h3>
+      <span class="spacer"></span>
+      <button mat-button type="button" (click)="selectAll()">All</button>
+      <button mat-button type="button" (click)="clearAll()">None</button>
+    </div>
+    <mat-selection-list formControlName="suppliers" class="supplier-list">
+      @for (name of supplierNames(); track name) {
+        <mat-list-option checkboxPosition="before" [value]="name">{{ name }}</mat-list-option>
+      }
+    </mat-selection-list>
+    @if (form.controls.suppliers.touched && form.controls.suppliers.invalid) {
+      <p class="error">Select at least one supplier</p>
+    }
+
+    <div class="actions">
+      @if (isSearching()) {
+        <button mat-stroked-button type="button" (click)="cancel()">
+          <mat-icon>close</mat-icon> Cancel
+        </button>
+      }
+      <button mat-flat-button color="primary" type="submit">
+        <mat-icon>search</mat-icon> Search prices
+      </button>
+    </div>
+  </form>
+</mat-card>
+
+@if (state() !== 'idle') {
+  <mat-card class="panel" appearance="outlined">
+    <div class="status-bar">
+      <span class="badge" [attr.data-state]="state()">{{ statusLabel() }}</span>
+      <span class="count">{{ responded() }} of {{ total() }} suppliers responded</span>
+    </div>
+    <mat-progress-bar mode="determinate" [value]="progress()" />
+
+    @if (isSearching() && pending().length) {
+      <p class="pending">Waiting for: {{ pending().join(', ') }}</p>
+    }
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    <ol class="board" [style.height.px]="sorted().length * rowStep">
+      @for (r of sorted(); track r.supplier; let i = $index) {
+        <li
+          class="row"
+          [class.failed]="!r.succeeded"
+          [class.best]="i === 0 && r.succeeded"
+          [style.transform]="'translateY(' + i * rowStep + 'px)'"
+        >
+          <span class="rank">{{ r.succeeded ? i + 1 : '–' }}</span>
+          <div class="info">
+            <strong>{{ r.supplier }}</strong>
+            <small>
+              @if (r.succeeded) { Responded in {{ r.responseTimeMs / 1000 | number: '1.1-1' }}s }
+              @else { {{ r.error }} }
+            </small>
+          </div>
+          <span class="price">
+            @if (r.succeeded) { {{ r.price | currency: 'USD' }} }
+            @else { <mat-icon>error_outline</mat-icon> Failed }
+          </span>
+        </li>
+      }
+    </ol>
+  </mat-card>
+}

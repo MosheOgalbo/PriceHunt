@@ -1,0 +1,90 @@
+<mat-card class="panel" appearance="outlined">
+  <form [formGroup]="filters" (ngSubmit)="apply()" class="filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Start date – End date</mat-label>
+      <mat-date-range-input formGroupName="range" [rangePicker]="picker">
+        <input matStartDate formControlName="start" placeholder="Start date" />
+        <input matEndDate formControlName="end" placeholder="End date" />
+      </mat-date-range-input>
+      <mat-datepicker-toggle matIconSuffix [for]="picker" />
+      <mat-date-range-picker #picker />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Suppliers</mat-label>
+      <mat-select formControlName="suppliers" multiple>
+        @for (s of suppliers(); track s) {
+          <mat-option [value]="s">{{ s }}</mat-option>
+        }
+      </mat-select>
+      <mat-hint>Empty = all suppliers</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>From location</mat-label>
+      <input matInput formControlName="fromLocation" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>To location</mat-label>
+      <input matInput formControlName="toLocation" />
+    </mat-form-field>
+
+    <div class="actions">
+      <button mat-button type="button" (click)="reset()">Reset</button>
+      <button mat-flat-button color="primary" type="submit"><mat-icon>filter_alt</mat-icon> Apply</button>
+    </div>
+  </form>
+</mat-card>
+
+<mat-card class="panel table-card" appearance="outlined">
+  @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+  @if (error()) { <p class="error">{{ error() }}</p> }
+
+  <div class="table-wrap">
+    <table
+      mat-table [dataSource]="rows()"
+      matSort matSortActive="date" matSortDirection="desc" matSortDisableClear
+      (matSortChange)="onSort($event)"
+    >
+      <ng-container matColumnDef="date">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="date">Date</th>
+        <td mat-cell *matCellDef="let r">{{ r.timestampUtc | date: 'dd/MM/yyyy HH:mm:ss' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="route">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="route">Route</th>
+        <td mat-cell *matCellDef="let r">{{ r.fromLocation }} <span class="arrow">→</span> {{ r.toLocation }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="supplier">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="supplier">Supplier</th>
+        <td mat-cell *matCellDef="let r">{{ r.supplier }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="price">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="price">Price</th>
+        <td mat-cell *matCellDef="let r">
+          @if (r.succeeded) { <strong>{{ r.price | currency: 'USD' }}</strong> }
+          @else { <span class="failed" [matTooltip]="r.error ?? ''">Failed</span> }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="responseTime">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="responseTime">Response Time</th>
+        <td mat-cell *matCellDef="let r">{{ r.responseTimeMs / 1000 | number: '1.2-2' }} s</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns; sticky: true"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      <tr class="mat-row" *matNoDataRow>
+        <td class="empty" [attr.colspan]="columns.length">No records match the selected filters</td>
+      </tr>
+    </table>
+  </div>
+
+  <mat-paginator
+    [length]="total()" [pageSize]="pageSize()" [pageIndex]="pageIndex()"
+    [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons (page)="onPage($event)"
+  />
+</mat-card>
