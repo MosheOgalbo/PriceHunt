@@ -11,4 +11,26 @@ $theme: mat.define-light-theme((
 @include mat.all-component-themes($theme);
 
 html, body { height: 100%; }
-body { margin: 0; background: #f5f6fa; color: #1f2430; font-family: Roboto, 'Helvetica Neue', sans-serif; }
+body {
+  margin: 0;
+  color: #1c2434;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background:
+    radial-gradient(900px 420px at -10% -20%, rgba(57, 73, 171, 0.14), transparent 55%),
+    radial-gradient(700px 360px at 110% -10%, rgba(0, 137, 123, 0.12), transparent 50%),
+    #f3f5fb;
+}
+
+.page-head {
+  margin: 4px 0 20px;
+  h1 { margin: 0 0 6px; font-size: 28px; font-weight: 700; letter-spacing: -0.4px; }
+  p { margin: 0; max-width: 62ch; color: #5c677d; line-height: 1.5; }
+}
+.eyebrow {
+  margin: 0 0 6px;
+  color: #3949ab;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}

@@ -12,6 +12,8 @@ export interface StartedEvent {
   maxDurationSeconds: number;
 }
 
+export type QuoteOutcome = 'ok' | 'failed' | 'noResponse';
+
 export interface SupplierResult {
   searchId: string;
   supplier: string;
@@ -20,6 +22,7 @@ export interface SupplierResult {
   succeeded: boolean;
   error: string | null;
   receivedAtUtc: string;
+  outcome: QuoteOutcome;
 }
 
 export type SearchOutcome = 'completed' | 'timedOut' | 'cancelled';

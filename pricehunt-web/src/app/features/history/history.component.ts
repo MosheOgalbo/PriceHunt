@@ -90,6 +90,10 @@ export class HistoryComponent implements OnInit {
     this.reload$.next();
   }
 
+  isNoResponse(r: HistoryItem): boolean {
+    return !r.succeeded && (r.error ?? '').toLowerCase().includes('no response');
+  }
+
   onPage(e: PageEvent): void {
     this.pageIndex.set(e.pageIndex);
     this.pageSize.set(e.pageSize);

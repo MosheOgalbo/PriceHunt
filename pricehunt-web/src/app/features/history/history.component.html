@@ -1,3 +1,9 @@
+<header class="page-head">
+  <p class="eyebrow">Archive</p>
+  <h1>Price history</h1>
+  <p>Every quote and every failure is kept. Filter by date, supplier, or route.</p>
+</header>
+
 <mat-card class="panel" appearance="outlined">
   <form [formGroup]="filters" (ngSubmit)="apply()" class="filters">
     <mat-form-field appearance="outline">
@@ -66,6 +72,7 @@
         <th mat-header-cell *matHeaderCellDef mat-sort-header="price">Price</th>
         <td mat-cell *matCellDef="let r">
           @if (r.succeeded) { <strong>{{ r.price | currency: 'USD' }}</strong> }
+          @else if (isNoResponse(r)) { <span class="silent" [matTooltip]="r.error ?? ''">No response</span> }
           @else { <span class="failed" [matTooltip]="r.error ?? ''">Failed</span> }
         </td>
       </ng-container>
@@ -78,7 +85,10 @@
       <tr mat-header-row *matHeaderRowDef="columns; sticky: true"></tr>
       <tr mat-row *matRowDef="let row; columns: columns"></tr>
       <tr class="mat-row" *matNoDataRow>
-        <td class="empty" [attr.colspan]="columns.length">No records match the selected filters</td>
+        <td class="empty" [attr.colspan]="columns.length">
+          <mat-icon>inbox</mat-icon>
+          <span>No records match the selected filters</span>
+        </td>
       </tr>
     </table>
   </div>

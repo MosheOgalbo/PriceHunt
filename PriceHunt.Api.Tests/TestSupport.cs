@@ -24,17 +24,21 @@ public sealed class TestDbFactory : IDbContextFactory<PriceHuntDbContext>, IDisp
 }
 
 /// <summary>Deterministic supplier. delayMs = null means it never responds.</summary>
-public sealed class FakeSupplier(string name, int? delayMs, decimal price = 100m, bool fail = false) : ISupplier
+public sealed class FakeSupplier(string name, int? delayMs, decimal price = 100m, bool fail = false, int failTimes = 0) : ISupplier
 {
     private readonly TaskCompletionSource _cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _calls;
 
     public string Name => name;
 
     /// <summary>Completes when the supplier call observed cancellation.</summary>
     public Task Cancelled => _cancelled.Task;
 
+    public int Calls => _calls;
+
     public async Task<decimal> GetPriceAsync(SearchCriteria criteria, CancellationToken ct)
     {
+        var call = Interlocked.Increment(ref _calls);
         try
         {
             await Task.Delay(delayMs ?? Timeout.Infinite, ct);
@@ -45,7 +49,7 @@ public sealed class FakeSupplier(string name, int? delayMs, decimal price = 100m
             throw;
         }
 
-        if (fail) throw new InvalidOperationException("boom");
+        if (fail || call <= failTimes) throw new InvalidOperationException("boom");
         return price;
     }
 }

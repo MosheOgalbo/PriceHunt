@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.EntityFrameworkCore;
 using PriceHunt.Api.Contracts;
+using PriceHunt.Api.Data;
 using PriceHunt.Api.Services;
 using PriceHunt.Api.Suppliers;
 
@@ -12,44 +14,100 @@ public static class ApiEndpoints
 
     public static void MapApi(this WebApplication app)
     {
+        app.MapGet("/health", Health);
+
         var api = app.MapGroup("/api");
-
         api.MapGet("/suppliers", (SearchService s) => s.SupplierNames);
-
         api.MapGet("/search", StreamSearch);
-
+        api.MapPost("/search/cancel", (string? streamId, SearchSessionHub hub) =>
+        {
+            if (!string.IsNullOrWhiteSpace(streamId)) hub.CancelNow(streamId);
+            return Results.NoContent();
+        });
         api.MapGet("/history", async ([AsParameters] HistoryQuery q, HistoryService h, CancellationToken ct) =>
             Results.Ok(await h.QueryAsync(q, ct)));
     }
 
-    private static async Task StreamSearch(HttpContext ctx, [AsParameters] SearchQuery q, SearchService svc)
+    private static async Task<IResult> Health(IDbContextFactory<PriceHuntDbContext> factory, CancellationToken ct)
     {
-        var errors = Validate(q, svc);
-        if (errors.Count > 0)
+        try
         {
-            await Results.ValidationProblem(errors).ExecuteAsync(ctx);
-            return;
+            await using var db = await factory.CreateDbContextAsync(ct);
+            if (!await db.Database.CanConnectAsync(ct))
+                return Results.Json(new { status = "Unhealthy", database = "sqlite" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            return Results.Ok(new { status = "Healthy", database = "sqlite" });
         }
+        catch (Exception ex)
+        {
+            return Results.Json(
+                new { status = "Unhealthy", database = "sqlite", detail = ex.GetType().Name },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    }
 
-        var criteria = new SearchCriteria(q.FromLocation!.Trim(), q.ToLocation!.Trim(), q.FromDate!.Value, q.ToDate!.Value);
-        var selected = svc.Resolve(q.Suppliers);
+    private static async Task StreamSearch(
+        HttpContext ctx, [AsParameters] SearchQuery q, SearchService svc, SearchSessionHub hub, ILoggerFactory loggers)
+    {
+        var logger = loggers.CreateLogger("PriceHunt.SearchStream");
+        var streamId = string.IsNullOrWhiteSpace(q.StreamId) ? Guid.NewGuid().ToString("N") : q.StreamId.Trim();
+        var isResume = int.TryParse(ctx.Request.Headers["Last-Event-ID"], out var lastId) && hub.TryGet(streamId, out _);
+        if (!isResume) lastId = 0;
+
+        if (!isResume)
+        {
+            var errors = Validate(q, svc);
+            if (errors.Count > 0)
+            {
+                await Results.ValidationProblem(errors).ExecuteAsync(ctx);
+                return;
+            }
+
+            var criteria = new SearchCriteria(q.FromLocation!.Trim(), q.ToLocation!.Trim(), q.FromDate!.Value, q.ToDate!.Value);
+            var selected = svc.Resolve(q.Suppliers);
+            var session = hub.Start(streamId);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var ev in svc.SearchAsync(criteria, selected, session.Work.Token))
+                        hub.Append(session, ev.Type, ev.Data);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Search stream {StreamId} failed", streamId);
+                }
+                finally
+                {
+                    hub.MarkProducerDone(session);
+                }
+            });
+        }
+        else
+        {
+            logger.LogInformation("Resuming search stream {StreamId} after event {LastEventId}", streamId, lastId);
+        }
 
         ctx.Response.Headers.ContentType = "text/event-stream";
         ctx.Response.Headers.CacheControl = "no-cache";
         ctx.Response.Headers["X-Accel-Buffering"] = "no";
         ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
 
+        hub.ListenerAttached(streamId);
         try
         {
-            await foreach (var ev in svc.SearchAsync(criteria, selected, ctx.RequestAborted))
+            await foreach (var entry in hub.Listen(streamId, lastId, ctx.RequestAborted))
             {
-                var data = JsonSerializer.Serialize(ev.Data, Json);
-                await ctx.Response.WriteAsync($"event: {ev.Type}\ndata: {data}\n\n", ctx.RequestAborted);
+                var data = JsonSerializer.Serialize(entry.Data, Json);
+                await ctx.Response.WriteAsync($"id: {entry.Id}\nevent: {entry.Type}\ndata: {data}\n\n", ctx.RequestAborted);
                 await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
             }
         }
         catch (OperationCanceledException)
         {
+        }
+        finally
+        {
+            hub.ListenerDetached(streamId);
         }
     }
 

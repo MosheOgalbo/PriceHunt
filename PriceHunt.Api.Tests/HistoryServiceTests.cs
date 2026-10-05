@@ -36,7 +36,7 @@ public sealed class HistoryServiceTests : IDisposable
             ToLocation = to,
             FromDate = new(2026, 10, 10),
             ToDate = new(2026, 10, 12),
-            Suppliers = string.Join(',', rs.Select(r => r.Supplier)),
+            SelectedSuppliers = rs.Select(r => new SearchSupplier { Supplier = r.Supplier }).ToList(),
             StartedAtUtc = at,
             FinishedAtUtc = at,
             Status = SearchStatus.Completed,
@@ -94,5 +94,31 @@ public sealed class HistoryServiceTests : IDisposable
         Assert.Equal(4, page1.Total);
         Assert.Equal(new double?[] { 30, 50, 80 }, page1.Items.Select(i => i.Price));
         Assert.Equal(new double?[] { 120 }, page2.Items.Select(i => i.Price));
+    }
+
+    [Fact]
+    public async Task Price_sort_places_missing_prices_last()
+    {
+        using (var db = _db.CreateDbContext())
+        {
+            var search = db.Searches.First();
+            db.Responses.Add(new SupplierResponseRecord
+            {
+                SearchId = search.Id,
+                Supplier = "Silent",
+                Price = null,
+                ResponseTimeMs = 6000,
+                TimestampUtc = Day1,
+                Succeeded = false,
+                Error = SearchService.NoResponseError,
+            });
+            db.SaveChanges();
+        }
+
+        var ascending = await _svc.QueryAsync(Query(sortBy: "price", sortDir: "asc", page: 1, size: 10), default);
+        var descending = await _svc.QueryAsync(Query(sortBy: "price", sortDir: "desc", page: 1, size: 10), default);
+
+        Assert.Equal(new double?[] { 30, 50, 80, 120, null }, ascending.Items.Select(i => i.Price));
+        Assert.Equal(new double?[] { 120, 80, 50, 30, null }, descending.Items.Select(i => i.Price));
     }
 }

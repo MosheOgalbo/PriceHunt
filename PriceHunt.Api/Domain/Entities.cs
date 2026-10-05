@@ -9,11 +9,19 @@ public class SearchRecord
     public string ToLocation { get; set; } = "";
     public DateOnly FromDate { get; set; }
     public DateOnly ToDate { get; set; }
-    public string Suppliers { get; set; } = "";
     public DateTime StartedAtUtc { get; set; }
     public DateTime? FinishedAtUtc { get; set; }
     public SearchStatus Status { get; set; }
+    public List<SearchSupplier> SelectedSuppliers { get; set; } = [];
     public List<SupplierResponseRecord> Responses { get; set; } = [];
+}
+
+/// <summary>Suppliers chosen for a search. One row per supplier instead of a CSV string.</summary>
+public class SearchSupplier
+{
+    public Guid SearchId { get; set; }
+    public SearchRecord Search { get; set; } = null!;
+    public string Supplier { get; set; } = "";
 }
 
 public class SupplierResponseRecord

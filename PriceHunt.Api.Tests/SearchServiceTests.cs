@@ -26,7 +26,7 @@ public sealed class SearchServiceTests : IDisposable
     private SearchRecord LoadSearch()
     {
         using var db = _db.CreateDbContext();
-        return db.Searches.Include(s => s.Responses).Single();
+        return db.Searches.Include(s => s.Responses).Include(s => s.SelectedSuppliers).Single();
     }
 
     [Fact]
@@ -53,6 +53,7 @@ public sealed class SearchServiceTests : IDisposable
         var saved = LoadSearch();
         Assert.Equal(SearchStatus.Completed, saved.Status);
         Assert.Equal(3, saved.Responses.Count);
+        Assert.Equal(3, saved.SelectedSuppliers.Count);
         Assert.NotNull(saved.FinishedAtUtc);
     }
 
@@ -84,12 +85,21 @@ public sealed class SearchServiceTests : IDisposable
 
         var events = await Run(Create(suppliers, maxMs: 400), suppliers);
 
-        Assert.Single(events, e => e.Type == "result");
+        var results = events.Where(e => e.Type == "result").Select(e => (ResultPayload)e.Data).ToList();
+        Assert.Equal(2, results.Count);
+        Assert.True(results.Single(r => r.Supplier == "Fast").Succeeded);
+        var silent = results.Single(r => r.Supplier == "Never");
+        Assert.Equal("noResponse", silent.Outcome);
+        Assert.Equal(SearchService.NoResponseError, silent.Error);
+
         var ended = Assert.IsType<EndedPayload>(events[^1].Data);
         Assert.Equal("timedOut", ended.Status);
         Assert.Equal(1, ended.Responded);
+        Assert.Equal(2, ended.Total);
 
-        Assert.Equal(SearchStatus.TimedOut, LoadSearch().Status);
+        var saved = LoadSearch();
+        Assert.Equal(SearchStatus.TimedOut, saved.Status);
+        Assert.Contains(saved.Responses, r => r.Supplier == "Never" && r.Succeeded == false);
         await never.Cancelled.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
@@ -108,8 +118,47 @@ public sealed class SearchServiceTests : IDisposable
             if (ev.Type == "result") cts.Cancel();
         }
 
-        Assert.DoesNotContain(events, e => e.Type == "ended");
+        var ended = Assert.IsType<EndedPayload>(Assert.Single(events, e => e.Type == "ended").Data);
+        Assert.Equal("cancelled", ended.Status);
         Assert.Equal(SearchStatus.Cancelled, LoadSearch().Status);
         await slow.Cancelled.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task Failed_supplier_is_retried_once_and_can_recover()
+    {
+        var flaky = new FakeSupplier("Flaky", 20, 40m, failTimes: 1);
+        ISupplier[] suppliers = [flaky];
+
+        var events = await Run(Create(suppliers), suppliers);
+
+        var result = Assert.IsType<ResultPayload>(Assert.Single(events, e => e.Type == "result").Data);
+        Assert.True(result.Succeeded);
+        Assert.Equal(40m, result.Price);
+        Assert.Equal(2, flaky.Calls);
+    }
+
+    [Fact]
+    public async Task Open_circuit_skips_the_supplier_without_calling_it_again()
+    {
+        var bad = new FakeSupplier("Bad", 10, fail: true);
+        var options = new SupplierExecutionOptions
+        {
+            MaxAttempts = 2,
+            AttemptTimeout = TimeSpan.FromSeconds(2),
+            FailureThreshold = 1,
+            BreakDuration = TimeSpan.FromMinutes(1),
+        };
+        var svc = new SearchService(
+            _db, [bad], TimeSpan.FromSeconds(3), execution: options, circuits: new SupplierCircuitBreaker(options));
+
+        await Run(svc, [bad]);
+        Assert.Equal(2, bad.Calls);
+
+        var again = await Run(svc, [bad]);
+        var skipped = Assert.IsType<ResultPayload>(Assert.Single(again, e => e.Type == "result").Data);
+        Assert.Equal(SearchService.CircuitOpenError, skipped.Error);
+        Assert.Equal("failed", skipped.Outcome);
+        Assert.Equal(2, bad.Calls);
     }
 }

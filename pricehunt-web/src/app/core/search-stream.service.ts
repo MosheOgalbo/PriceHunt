@@ -7,20 +7,25 @@ import { SearchParams, StreamEvent } from './models';
 export class SearchStreamService {
   /**
    * Cold observable over Server-Sent Events.
-   * Unsubscribing closes the EventSource, which aborts the request,
-   * and the server then cancels all in-flight supplier calls.
+   * Each search has its own stream id. Closing the subscription is an explicit
+   * cancel, so the server stops supplier work immediately. A dropped connection
+   * leaves the EventSource to reconnect; the browser sends Last-Event-ID and
+   * the server replays anything that was missed.
    */
   stream(p: SearchParams): Observable<StreamEvent> {
+    const streamId = crypto.randomUUID();
     const qs = new URLSearchParams({
       fromLocation: p.fromLocation,
       toLocation: p.toLocation,
       fromDate: p.fromDate,
       toDate: p.toDate,
+      streamId,
     });
     p.suppliers.forEach(s => qs.append('suppliers', s));
+    const url = `${API_BASE}/search?${qs}`;
 
     return new Observable<StreamEvent>(subscriber => {
-      const es = new EventSource(`${API_BASE}/search?${qs}`);
+      const es = new EventSource(url);
       let settled = false;
 
       const finish = () => {
@@ -43,11 +48,22 @@ export class SearchStreamService {
 
       es.onerror = () => {
         if (settled) return;
+        // CONNECTING means the browser is already retrying with Last-Event-ID.
+        if (es.readyState === EventSource.CONNECTING) return;
         finish();
         subscriber.error(new Error('Connection to the server was lost'));
       };
 
-      return () => finish();
+      return () => {
+        const userCancelled = !settled;
+        finish();
+        if (userCancelled) {
+          void fetch(`${API_BASE}/search/cancel?streamId=${encodeURIComponent(streamId)}`, {
+            method: 'POST',
+            keepalive: true,
+          });
+        }
+      };
     });
   }
 }

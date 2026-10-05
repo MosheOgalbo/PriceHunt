@@ -28,7 +28,9 @@ foreach (var (name, behavior) in suppliers)
 // Factory registration: the optional timeout argument is for tests. The host keeps the 6s default.
 builder.Services.AddSingleton(sp => new SearchService(
     sp.GetRequiredService<IDbContextFactory<PriceHuntDbContext>>(),
-    sp.GetServices<ISupplier>()));
+    sp.GetServices<ISupplier>(),
+    logger: sp.GetRequiredService<ILogger<SearchService>>()));
+builder.Services.AddSingleton<SearchSessionHub>();
 builder.Services.AddSingleton<HistoryService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins("http://localhost:4200", "http://127.0.0.1:4200").AllowAnyHeader().AllowAnyMethod()));
@@ -38,7 +40,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 var app = builder.Build();
 
 await using (var db = await app.Services.GetRequiredService<IDbContextFactory<PriceHuntDbContext>>().CreateDbContextAsync())
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
 
 app.UseCors();
 app.MapApi();

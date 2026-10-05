@@ -12,6 +12,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { SearchParams, StreamEvent, SupplierResult } from '../../core/models';
+import { isCurrentSearch } from '../../core/search-generation';
 import { SearchStreamService } from '../../core/search-stream.service';
 import { toIsoDate } from '../../core/utils';
 
@@ -57,14 +58,14 @@ export class SearchComponent implements OnInit, OnDestroy {
   readonly errorMessage = signal<string | null>(null);
 
   readonly isSearching = computed(() => this.state() === 'searching');
-  readonly responded = computed(() => this.results().length);
+  readonly answered = computed(() => this.results().filter(r => r.outcome !== 'noResponse').length);
   readonly total = computed(() => this.queried().length);
-  readonly progress = computed(() => (this.total() ? (this.responded() / this.total()) * 100 : 0));
+  readonly progress = computed(() => (this.total() ? (this.answered() / this.total()) * 100 : 0));
 
   readonly sorted = computed(() =>
     [...this.results()].sort(
       (a, b) =>
-        Number(!a.succeeded) - Number(!b.succeeded) ||
+        this.outcomeRank(a) - this.outcomeRank(b) ||
         (a.price ?? 0) - (b.price ?? 0) ||
         a.responseTimeMs - b.responseTimeMs,
     ),
@@ -138,8 +139,13 @@ export class SearchComponent implements OnInit, OnDestroy {
     if (markCancelled && this.isSearching()) this.state.set('cancelled');
   }
 
+  private outcomeRank(r: SupplierResult): number {
+    if (r.succeeded) return 0;
+    return r.outcome === 'noResponse' ? 2 : 1;
+  }
+
   private onEvent(generation: number, ev: StreamEvent): void {
-    if (generation !== this.generation) return;
+    if (!isCurrentSearch(generation, this.generation)) return;
     if (ev.type === 'result') {
       this.results.update(list =>
         list.some(r => r.supplier === ev.data.supplier) ? list : [...list, ev.data],

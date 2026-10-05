@@ -37,7 +37,7 @@ Why SSE:
 - The data flow is one-directional, server to client.
 - It is plain HTTP, so there is no extra dependency such as SignalR.
 - Browsers already speak it through `EventSource`.
-- Closing the `EventSource` aborts the request. ASP.NET Core surfaces that as `HttpContext.RequestAborted`, and that token is linked to every supplier call.
+- Closing the `EventSource` from a new search or from Cancel calls `POST /api/search/cancel`, which stops supplier work immediately. A network drop is different: the browser reconnects with `Last-Event-ID` and the server replays events it already produced.
 
 Alternatives considered:
 
@@ -52,12 +52,12 @@ Server:
 - One linked `CancellationTokenSource` combines the client abort token with a 6 second timeout, and that token is passed into every supplier call.
 - A supplier exception is caught inside that supplier's task, stored as a failed result, and does not cancel the others.
 - When the time limit is reached, results already in the channel are flushed, the search is marked `TimedOut`, and an `ended` event is sent.
-- If the client disconnects or starts a new search, in-flight supplier calls are cancelled and the search is marked `Cancelled`. No `ended` event is sent, because the client is already gone.
+- If the client cancels or the disconnect grace expires, in-flight supplier calls are cancelled and the search is marked `Cancelled`. An `ended` event is still recorded so a client that reconnects can settle instead of hanging.
 
 Client:
 
 - A generation counter drops any event that belongs to a previous search, so a late result cannot appear in a new search.
-- The result list is sorted cheapest-first. Failed suppliers sink to the bottom.
+- The result list is sorted cheapest-first. Failed suppliers sink below priced quotes, and a supplier that never answered sinks below those.
 - Each row is absolutely positioned by its index and moves with a CSS transform, so reordering glides instead of jumping or flickering.
 - The status line shows how many suppliers have responded, and a final badge: Completed, Timed out, or Cancelled.
 - `EventSource` is closed when the stream ends, so the browser does not reconnect and flash a connection error after a successful search.
@@ -74,16 +74,22 @@ All seven are in-process implementations of `ISupplier`. There are no outbound n
 
 A search that includes GlobalPort therefore ends as Timed out. That is intended.
 
-## Database (EF Core + SQLite, `EnsureCreated`)
+## Database (EF Core + SQLite, migrations)
+
+On startup the API runs `Database.Migrate()`, so the schema is created or updated on first run. No database install and no manual migration command is required.
 
 `Searches`
 
 - `Id` (PK)
 - `FromLocation`, `ToLocation`
 - `FromDate`, `ToDate`
-- `Suppliers` (CSV of the names that were queried)
 - `StartedAtUtc`, `FinishedAtUtc`
 - `Status`: `Running`, `Completed`, `TimedOut`, `Cancelled`
+
+`SearchSuppliers`
+
+- `SearchId` + `Supplier` (composite PK, cascade delete)
+- One row for each supplier that was queried
 
 `Responses`
 
@@ -100,25 +106,42 @@ Indexes: `Searches.StartedAtUtc`, `Responses.Supplier`, `Responses.TimestampUtc`
 
 The history endpoint returns supplier responses, filtered by start date, end date (the end day is inclusive), one or more suppliers, and from/to location. Results can be sorted by date, route, supplier, price, or response time, and they are paged.
 
-A supplier that never answers is not a response, so it is not a history row. The search row still records that the search timed out.
+A supplier that is still silent when the 6 second limit is reached is stored as a response with no price and the error "No response before the search ended". The search status stays `TimedOut`. Sorting by price puts those rows after every priced quote, in both directions.
+
+`GET /health` checks that SQLite is reachable.
+
+## Supplier calls
+
+Each selected supplier runs on its own task.
+
+- An attempt is limited to 5.5 seconds, inside the 6 second search. A normal quote (0.5–5 seconds) still fits.
+- A thrown failure is retried once when the search window is still open. The supplier itself still fails about 30% of the time per attempt.
+- Four failures in a row open a circuit for 20 seconds. Later searches skip that supplier immediately and record why. A timeout does not count as a failure, so GlobalPort still waits out the search instead of being skipped.
+- Cancellation of the search, or of one attempt because the search ended, is not retried and does not open the circuit.
+
+## Resuming a dropped stream
+
+Every SSE event has an `id`. The Angular client sends a `streamId` with the search.
+
+- Starting a new search, or pressing Cancel, calls `POST /api/search/cancel`. Supplier work stops immediately.
+- If the connection drops without that call, the server keeps the search for one second. `EventSource` reconnects and sends `Last-Event-ID`, and the server replays the missed events. If nobody reconnects, the search is cancelled.
 
 ## Trade-offs
 
-- Selected suppliers are stored as CSV instead of a join table. It is simple to write and to show, and it is awkward to query.
-- `Price` is a `double` because EF Core on SQLite cannot `ORDER BY` a decimal.
-- `EnsureCreated` instead of migrations, so the project runs with no setup step. Schema changes in a real app would need migrations.
+- Selected suppliers are a join table (`SearchSuppliers`), so a search can be queried by the suppliers that were asked without parsing text.
+- `Price` is a `double` because EF Core on SQLite cannot `ORDER BY` a decimal. Missing prices sort after real prices.
+- Migrations are applied automatically on startup, so a clone still runs with one command and the schema can change later.
 - The search timeout is injectable so tests do not wait 6 seconds. The running API keeps the 6 second default. The DI registration is a factory because the container would otherwise try to resolve that optional `TimeSpan`.
-- Tests use xUnit and SQLite in-memory, with one open connection so every context sees the same database.
-- A search left in `Running` only if the process is killed mid-flight. Disconnects and timeouts update the status before the request ends.
+- A dropped SSE connection waits one second before cancellation. That is long enough for `Last-Event-ID` to resume, and short enough that leaving the page still stops the work.
+- One retry lowers how often FlexiShip's 30% failure is visible, because a second attempt can succeed. The failure rate on each attempt is unchanged.
+- Tests use xUnit and SQLite in-memory, with one open connection so every context sees the same database. The Angular tests cover the rule that a late event from search N cannot enter search N+1.
+- A search stays `Running` only if the process is killed mid-flight. Disconnects and timeouts update the status before the request ends.
 
 ## What I would do differently
 
-- EF migrations, and a join table for selected suppliers.
 - Authentication, and a per-user history.
-- An Angular component test that a late event from search N cannot enter search N+1.
-- Per-supplier timeout, retry, and a circuit breaker, with the silent supplier reported explicitly instead of only through the search status.
-- `Last-Event-ID` so a dropped SSE connection can resume.
-- Structured logging and a health endpoint.
+- A durable outbox for SSE events, so a resume still works after the API process restarts. The current buffer is in memory.
+- Real supplier adapters behind the same `ISupplier` interface, with secrets outside the repo.
 
 ## AI usage
 

@@ -60,7 +60,9 @@ public sealed class HistoryService(IDbContextFactory<PriceHuntDbContext> dbFacto
             ? src.OrderByDescending(r => r.Search.FromLocation).ThenByDescending(r => r.Search.ToLocation)
             : src.OrderBy(r => r.Search.FromLocation).ThenBy(r => r.Search.ToLocation),
         "supplier" => By(src, r => r.Supplier, desc),
-        "price" => By(src, r => r.Price, desc),
+        "price" => desc
+            ? src.OrderBy(r => r.Price == null).ThenByDescending(r => r.Price)
+            : src.OrderBy(r => r.Price == null).ThenBy(r => r.Price),
         "responsetime" => By(src, r => r.ResponseTimeMs, desc),
         _ => By(src, r => r.TimestampUtc, desc),
     };

@@ -1,3 +1,9 @@
+<header class="page-head">
+  <p class="eyebrow">Live market</p>
+  <h1>Search shipping prices</h1>
+  <p>Quotes arrive as each supplier responds and stay sorted cheapest first. A search closes after 6 seconds.</p>
+</header>
+
 <mat-card class="panel" appearance="outlined">
   <form [formGroup]="form" (ngSubmit)="search()">
     <div class="grid">
@@ -29,6 +35,7 @@
 
     <div class="suppliers-head">
       <h3>Suppliers</h3>
+      <span class="selected">{{ form.controls.suppliers.value.length }} selected</span>
       <span class="spacer"></span>
       <button mat-button type="button" (click)="selectAll()">All</button>
       <button mat-button type="button" (click)="clearAll()">None</button>
@@ -59,7 +66,7 @@
   <mat-card class="panel" appearance="outlined">
     <div class="status-bar">
       <span class="badge" [attr.data-state]="state()">{{ statusLabel() }}</span>
-      <span class="count">{{ responded() }} of {{ total() }} suppliers responded</span>
+      <span class="count">{{ answered() }} of {{ total() }} suppliers responded</span>
     </div>
     <mat-progress-bar mode="determinate" [value]="progress()" />
 
@@ -74,7 +81,8 @@
       @for (r of sorted(); track r.supplier; let i = $index) {
         <li
           class="row"
-          [class.failed]="!r.succeeded"
+          [class.failed]="r.outcome === 'failed'"
+          [class.silent]="r.outcome === 'noResponse'"
           [class.best]="i === 0 && r.succeeded"
           [style.transform]="'translateY(' + i * rowStep + 'px)'"
         >
@@ -87,8 +95,13 @@
             </small>
           </div>
           <span class="price">
-            @if (r.succeeded) { {{ r.price | currency: 'USD' }} }
-            @else { <mat-icon>error_outline</mat-icon> Failed }
+            @if (r.succeeded) {
+              {{ r.price | currency: 'USD' }}
+            } @else if (r.outcome === 'noResponse') {
+              <mat-icon>schedule</mat-icon> No response
+            } @else {
+              <mat-icon>error_outline</mat-icon> Failed
+            }
           </span>
         </li>
       }
