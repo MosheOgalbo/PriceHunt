@@ -20,7 +20,9 @@ In a second terminal:
 cd pricehunt-web && npm install && npm start
 ```
 
-The UI is at http://localhost:4200.
+The UI is at http://localhost:4200. It opens in English. The language control in the toolbar opens a list (English, עברית, Русский, العربية) and remembers the choice. Hebrew and Arabic use right-to-left layout.
+
+Location fields complete from a built-in list of real ports and cities (UN/LOCODE, place, and country). The value saved on a search is the English place name, so history stays the same in every language.
 
 Tests:
 

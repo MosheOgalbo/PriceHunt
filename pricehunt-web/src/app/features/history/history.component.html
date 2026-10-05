@@ -1,44 +1,61 @@
 <header class="page-head">
-  <p class="eyebrow">Archive</p>
-  <h1>Price history</h1>
-  <p>Every quote and every failure is kept. Filter by date, supplier, or route.</p>
+  <p class="eyebrow">{{ i18n.t('archive') }}</p>
+  <h1>{{ i18n.t('historyTitle') }}</h1>
+  <p>{{ i18n.t('historyLead') }}</p>
 </header>
 
 <mat-card class="panel" appearance="outlined">
   <form [formGroup]="filters" (ngSubmit)="apply()" class="filters">
-    <mat-form-field appearance="outline">
-      <mat-label>Start date – End date</mat-label>
-      <mat-date-range-input formGroupName="range" [rangePicker]="picker">
-        <input matStartDate formControlName="start" placeholder="Start date" />
-        <input matEndDate formControlName="end" placeholder="End date" />
+    <app-place-field formControlName="fromLocation" [label]="i18n.t('fromLocation')" [placeholder]="i18n.t('placeHint')" icon="trip_origin" [required]="true" [showErrors]="submitted()" />
+    <app-place-field formControlName="toLocation" [label]="i18n.t('toLocation')" [placeholder]="i18n.t('placeHint')" icon="place" [required]="true" [showErrors]="submitted()" />
+
+    <mat-form-field appearance="outline" class="date-range" floatLabel="always" subscriptSizing="dynamic">
+      <mat-label>{{ i18n.t('dateRange') }}</mat-label>
+      <mat-date-range-input [rangePicker]="picker" [dateFilter]="blockBeforeStart()" separator="–">
+        <input matStartDate formControlName="fromDate" [placeholder]="i18n.t('fromDate')" (click)="picker.open()" readonly />
+        <input matEndDate formControlName="toDate" [placeholder]="i18n.t('toDate')" (click)="picker.open()" readonly />
       </mat-date-range-input>
-      <mat-datepicker-toggle matIconSuffix [for]="picker" />
-      <mat-date-range-picker #picker />
+      @if (filters.controls.fromDate.value || filters.controls.toDate.value) {
+        <button mat-icon-button matIconSuffix type="button" (click)="clearDates(); picker.close()" [attr.aria-label]="i18n.t('clearDate')">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+      <mat-datepicker-toggle matIconSuffix [for]="picker" [aria-label]="i18n.t('openCalendar')" />
+      <mat-date-range-picker #picker panelClass="cal-range" />
+      <mat-error>
+        @if (filters.controls.toDate.hasError('endBeforeStart')) {
+          {{ i18n.t('endBeforeStart') }}
+        } @else {
+          {{ i18n.t('required') }}
+        }
+      </mat-error>
     </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Suppliers</mat-label>
-      <mat-select formControlName="suppliers" multiple>
+    <mat-form-field appearance="outline" class="suppliers-field" floatLabel="always" subscriptSizing="dynamic">
+      <mat-label>{{ i18n.t('suppliers') }}</mat-label>
+      <mat-select formControlName="suppliers" multiple panelClass="supplier-panel">
+        <mat-select-trigger>{{ supplierLabel() }}</mat-select-trigger>
+        <div class="clear-selection">
+          <button mat-button type="button" (click)="clearSuppliers($event)">
+            <mat-icon>close</mat-icon>
+            {{ i18n.t('clearSelection') }}
+          </button>
+        </div>
         @for (s of suppliers(); track s) {
           <mat-option [value]="s">{{ s }}</mat-option>
         }
       </mat-select>
-      <mat-hint>Empty = all suppliers</mat-hint>
-    </mat-form-field>
-
-    <mat-form-field appearance="outline">
-      <mat-label>From location</mat-label>
-      <input matInput formControlName="fromLocation" />
-    </mat-form-field>
-
-    <mat-form-field appearance="outline">
-      <mat-label>To location</mat-label>
-      <input matInput formControlName="toLocation" />
+      @if (filters.controls.suppliers.value.length) {
+        <button mat-icon-button matIconSuffix type="button" (click)="clearSuppliers($event)" [attr.aria-label]="i18n.t('clearSelection')">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+      <mat-error>{{ i18n.t('selectSupplier') }}</mat-error>
     </mat-form-field>
 
     <div class="actions">
-      <button mat-button type="button" (click)="reset()">Reset</button>
-      <button mat-flat-button color="primary" type="submit"><mat-icon>filter_alt</mat-icon> Apply</button>
+      <button mat-button type="button" (click)="reset()">{{ i18n.t('reset') }}</button>
+      <button mat-flat-button color="primary" type="submit"><mat-icon>filter_alt</mat-icon> {{ i18n.t('apply') }}</button>
     </div>
   </form>
 </mat-card>
@@ -54,40 +71,40 @@
       (matSortChange)="onSort($event)"
     >
       <ng-container matColumnDef="date">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header="date">Date</th>
-        <td mat-cell *matCellDef="let r">{{ r.timestampUtc | date: 'dd/MM/yyyy HH:mm:ss' }}</td>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="date">{{ i18n.t('date') }}</th>
+        <td mat-cell *matCellDef="let r">{{ r.timestampUtc | date: 'dd/MM/yyyy HH:mm:ss' : undefined : i18n.locale() }}</td>
       </ng-container>
 
       <ng-container matColumnDef="route">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header="route">Route</th>
-        <td mat-cell *matCellDef="let r">{{ r.fromLocation }} <span class="arrow">→</span> {{ r.toLocation }}</td>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="route">{{ i18n.t('route') }}</th>
+        <td mat-cell *matCellDef="let r">{{ routePlace(r.fromLocation) }} <span class="arrow">→</span> {{ routePlace(r.toLocation) }}</td>
       </ng-container>
 
       <ng-container matColumnDef="supplier">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header="supplier">Supplier</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="supplier">{{ i18n.t('supplier') }}</th>
         <td mat-cell *matCellDef="let r">{{ r.supplier }}</td>
       </ng-container>
 
       <ng-container matColumnDef="price">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header="price">Price</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="price">{{ i18n.t('price') }}</th>
         <td mat-cell *matCellDef="let r">
-          @if (r.succeeded) { <strong>{{ r.price | currency: 'USD' }}</strong> }
-          @else if (isNoResponse(r)) { <span class="silent" [matTooltip]="r.error ?? ''">No response</span> }
-          @else { <span class="failed" [matTooltip]="r.error ?? ''">Failed</span> }
+          @if (r.succeeded) { <strong>{{ r.price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}</strong> }
+          @else if (isNoResponse(r)) { <span class="silent" [matTooltip]="i18n.t('noResponseDetail')">{{ i18n.t('noResponse') }}</span> }
+          @else { <span class="failed" [matTooltip]="r.error ?? ''">{{ i18n.t('failed') }}</span> }
         </td>
       </ng-container>
 
       <ng-container matColumnDef="responseTime">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header="responseTime">Response Time</th>
-        <td mat-cell *matCellDef="let r">{{ r.responseTimeMs / 1000 | number: '1.2-2' }} s</td>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header="responseTime">{{ i18n.t('responseTime') }}</th>
+        <td mat-cell *matCellDef="let r">{{ r.responseTimeMs / 1000 | number: '1.2-2' : i18n.locale() }} {{ i18n.t('secondsShort') }}</td>
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="columns; sticky: true"></tr>
-      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns" class="clickable" (click)="openSupplier(row)"></tr>
       <tr class="mat-row" *matNoDataRow>
         <td class="empty" [attr.colspan]="columns.length">
           <mat-icon>inbox</mat-icon>
-          <span>No records match the selected filters</span>
+          <span>{{ i18n.t('emptyHistory') }}</span>
         </td>
       </tr>
     </table>
