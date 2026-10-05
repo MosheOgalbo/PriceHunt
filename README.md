@@ -106,7 +106,7 @@ On startup the API runs `Database.Migrate()`, so the schema is created or update
 
 Indexes: `Searches.StartedAtUtc`, `Responses.Supplier`, `Responses.TimestampUtc`.
 
-The history endpoint returns supplier responses, filtered by start date, end date (the end day is inclusive), one or more suppliers, and from/to location. Results can be sorted by date, route, supplier, price, or response time, and they are paged.
+The history endpoint returns supplier responses, filtered by start date, end date (the end day is inclusive), one or more suppliers, and from/to location. The browser sends its timezone offset, so those calendar days are the user's local days rather than UTC midnights. Results can be sorted by date, route, supplier, price, or response time, and they are paged. A location filter treats `%` and `_` as literal characters.
 
 A supplier that is still silent when the 6 second limit is reached is stored as a response with no price and the error "No response before the search ended". The search status stays `TimedOut`. Sorting by price puts those rows after every priced quote, in both directions.
 
@@ -138,6 +138,9 @@ Every SSE event has an `id`. The Angular client sends a `streamId` with the sear
 - One retry lowers how often FlexiShip's 30% failure is visible, because a second attempt can succeed. The failure rate on each attempt is unchanged.
 - Tests use xUnit and SQLite in-memory, with one open connection so every context sees the same database. The Angular tests cover the rule that a late event from search N cannot enter search N+1.
 - A search stays `Running` only if the process is killed mid-flight. Disconnects and timeouts update the status before the request ends.
+- If a supplier already failed and the 6 second window closes during the retry, that failure is stored. It is not replaced with "No response".
+- The circuit breaker is one instance for the process, so a run of failures can skip that supplier on a later search. A timeout does not count toward opening it.
+- If the browser receives no SSE event for 10 seconds, the live search stops with a connection error instead of staying on "Searching…".
 
 ## What I would do differently
 

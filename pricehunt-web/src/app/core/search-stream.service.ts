@@ -13,7 +13,7 @@ export class SearchStreamService {
    * the server replays anything that was missed.
    */
   stream(p: SearchParams): Observable<StreamEvent> {
-    const streamId = crypto.randomUUID();
+    const streamId = newStreamId();
     const qs = new URLSearchParams({
       fromLocation: p.fromLocation,
       toLocation: p.toLocation,
@@ -28,15 +28,28 @@ export class SearchStreamService {
       const es = new EventSource(url);
       let settled = false;
 
+      const fail = () => {
+        if (settled) return;
+        finish();
+        subscriber.error(new Error('Connection to the server was lost'));
+      };
+      let watchdog = setTimeout(fail, 10_000);
+      const touch = () => {
+        clearTimeout(watchdog);
+        watchdog = setTimeout(fail, 10_000);
+      };
+
       const finish = () => {
         if (settled) return;
         settled = true;
+        clearTimeout(watchdog);
         es.close();
       };
 
       (['started', 'result', 'ended'] as const).forEach(type =>
         es.addEventListener(type, (event: Event) => {
           if (settled) return;
+          touch();
           const data = JSON.parse((event as MessageEvent<string>).data);
           subscriber.next({ type, data } as StreamEvent);
           if (type === 'ended') {
@@ -66,4 +79,13 @@ export class SearchStreamService {
       };
     });
   }
+}
+
+/** crypto.randomUUID is missing outside a secure context, such as a LAN IP. */
+function newStreamId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const n = Math.floor(Math.random() * 16);
+    return (c === 'x' ? n : (n & 0x3) | 0x8).toString(16);
+  });
 }

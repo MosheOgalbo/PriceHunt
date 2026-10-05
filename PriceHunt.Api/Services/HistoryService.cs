@@ -15,25 +15,25 @@ public sealed class HistoryService(IDbContextFactory<PriceHuntDbContext> dbFacto
 
         if (q.StartDate is { } start)
         {
-            var from = start.ToDateTime(TimeOnly.MinValue);
+            var from = LocalMidnightUtc(start, q.TzOffsetMinutes);
             query = query.Where(r => r.TimestampUtc >= from);
         }
         if (q.EndDate is { } end)
         {
-            var to = end.AddDays(1).ToDateTime(TimeOnly.MinValue);
+            var to = LocalMidnightUtc(end.AddDays(1), q.TzOffsetMinutes);
             query = query.Where(r => r.TimestampUtc < to);
         }
         if (q.Suppliers is { Length: > 0 } sup)
             query = query.Where(r => sup.Contains(r.Supplier));
         if (!string.IsNullOrWhiteSpace(q.FromLocation))
         {
-            var p = $"%{q.FromLocation.Trim()}%";
-            query = query.Where(r => EF.Functions.Like(r.Search.FromLocation, p));
+            var p = ContainsPattern(q.FromLocation);
+            query = query.Where(r => EF.Functions.Like(r.Search.FromLocation, p, "\\"));
         }
         if (!string.IsNullOrWhiteSpace(q.ToLocation))
         {
-            var p = $"%{q.ToLocation.Trim()}%";
-            query = query.Where(r => EF.Functions.Like(r.Search.ToLocation, p));
+            var p = ContainsPattern(q.ToLocation);
+            query = query.Where(r => EF.Functions.Like(r.Search.ToLocation, p, "\\"));
         }
 
         var page = Math.Max(1, q.Page ?? 1);
@@ -51,6 +51,16 @@ public sealed class HistoryService(IDbContextFactory<PriceHuntDbContext> dbFacto
 
         var result = items.Select(i => i with { TimestampUtc = DateTime.SpecifyKind(i.TimestampUtc, DateTimeKind.Utc) }).ToList();
         return new PagedResult<HistoryItem>(result, total, page, size);
+    }
+
+    /// <summary>JS <c>getTimezoneOffset()</c>: minutes to add to local midnight to get UTC.</summary>
+    private static DateTime LocalMidnightUtc(DateOnly day, int? tzOffsetMinutes) =>
+        day.ToDateTime(TimeOnly.MinValue).AddMinutes(tzOffsetMinutes ?? 0);
+
+    private static string ContainsPattern(string raw)
+    {
+        var escaped = raw.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        return $"%{escaped}%";
     }
 
     private static IOrderedQueryable<SupplierResponseRecord> Order(

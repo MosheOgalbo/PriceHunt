@@ -77,6 +77,24 @@ public sealed class HistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Local_calendar_day_includes_the_previous_utc_evening()
+    {
+        var result = await _svc.QueryAsync(
+            Query(start: new DateOnly(2026, 10, 2), end: new DateOnly(2026, 10, 2)) with { TzOffsetMinutes = -180 },
+            default);
+
+        Assert.Equal(4, result.Total);
+    }
+
+    [Fact]
+    public async Task Like_wildcards_in_the_filter_are_literal()
+    {
+        var result = await _svc.QueryAsync(Query(from: "H_ifa"), default);
+
+        Assert.Equal(0, result.Total);
+    }
+
+    [Fact]
     public async Task Filters_by_route_location()
     {
         var result = await _svc.QueryAsync(Query(from: "tel"), default);

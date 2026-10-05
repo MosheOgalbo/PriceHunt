@@ -139,6 +139,40 @@ public sealed class SearchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Cancellation_during_retry_keeps_the_real_supplier_error()
+    {
+        var flaky = new FailThenHang();
+        var events = await Run(Create([flaky], maxMs: 400), [flaky]);
+
+        var result = Assert.IsType<ResultPayload>(Assert.Single(events, e => e.Type == "result").Data);
+        Assert.Equal("failed", result.Outcome);
+        Assert.Equal("boom", result.Error);
+        Assert.Equal("boom", LoadSearch().Responses.Single().Error);
+    }
+
+    [Fact]
+    public async Task Attempt_timeout_does_not_open_the_circuit()
+    {
+        var hang = new FakeSupplier("Slow", null);
+        var options = new SupplierExecutionOptions
+        {
+            MaxAttempts = 1,
+            AttemptTimeout = TimeSpan.FromMilliseconds(40),
+            FailureThreshold = 1,
+            BreakDuration = TimeSpan.FromMinutes(1),
+        };
+        var svc = new SearchService(
+            _db, [hang], TimeSpan.FromSeconds(2), execution: options, circuits: new SupplierCircuitBreaker(options));
+
+        await Run(svc, [hang]);
+        var again = await Run(svc, [hang]);
+
+        var second = Assert.IsType<ResultPayload>(Assert.Single(again, e => e.Type == "result").Data);
+        Assert.NotEqual(SearchService.CircuitOpenError, second.Error);
+        Assert.Equal(2, hang.Calls);
+    }
+
+    [Fact]
     public async Task Open_circuit_skips_the_supplier_without_calling_it_again()
     {
         var bad = new FakeSupplier("Bad", 10, fail: true);
@@ -160,5 +194,20 @@ public sealed class SearchServiceTests : IDisposable
         Assert.Equal(SearchService.CircuitOpenError, skipped.Error);
         Assert.Equal("failed", skipped.Outcome);
         Assert.Equal(2, bad.Calls);
+    }
+
+    /// <summary>First call fails immediately. The retry waits until the search window cancels it.</summary>
+    private sealed class FailThenHang : ISupplier
+    {
+        private int _calls;
+        public string Name => "Flaky";
+
+        public async Task<decimal> GetPriceAsync(SearchCriteria criteria, CancellationToken ct)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+                throw new InvalidOperationException("boom");
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
     }
 }

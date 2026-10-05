@@ -106,6 +106,16 @@ public sealed class SearchService
                     yield return await PersistAsync(outcome);
             }
 
+            // Workers may still be writing the real error after the window closes.
+            try
+            {
+                await Task.WhenAll(workers).WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            catch (TimeoutException)
+            {
+                _logger?.LogWarning("Search {SearchId} stopped waiting for supplier tasks", search.Id);
+            }
+
             while (reader.TryRead(out var late))
                 yield return await PersistAsync(late);
 
@@ -190,7 +200,11 @@ public sealed class SearchService
         Exception? last = null;
         for (var attempt = 1; attempt <= _execution.MaxAttempts; attempt++)
         {
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested)
+            {
+                WriteInterrupted();
+                return;
+            }
 
             using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             attemptCts.CancelAfter(_execution.AttemptTimeout);
@@ -203,6 +217,7 @@ public sealed class SearchService
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+                WriteInterrupted();
                 return;
             }
             catch (OperationCanceledException)
@@ -217,7 +232,8 @@ public sealed class SearchService
             var retry = attempt < _execution.MaxAttempts && !ct.IsCancellationRequested;
             if (!retry)
             {
-                _circuits.RecordFailure(supplier.Name);
+                if (last is not TimeoutException)
+                    _circuits.RecordFailure(supplier.Name);
                 writer.TryWrite(new Outcome(
                     supplier.Name, null, (int)sw.ElapsedMilliseconds, DateTime.UtcNow, last?.Message ?? "Supplier failed"));
                 return;
@@ -226,6 +242,13 @@ public sealed class SearchService
             _logger?.LogInformation(
                 "Retrying supplier {Supplier} after attempt {Attempt} failed: {Reason}",
                 supplier.Name, attempt, last?.Message);
+        }
+
+        // A real failure must not be rewritten as "no response" when the search window closes mid-retry.
+        void WriteInterrupted()
+        {
+            if (last is not null and not TimeoutException)
+                writer.TryWrite(new Outcome(supplier.Name, null, (int)sw.ElapsedMilliseconds, DateTime.UtcNow, last.Message));
         }
     }
 }

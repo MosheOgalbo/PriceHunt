@@ -7,7 +7,7 @@ public sealed record SearchQuery(
 public sealed record HistoryQuery(
     DateOnly? StartDate, DateOnly? EndDate, string[]? Suppliers,
     string? FromLocation, string? ToLocation,
-    string? SortBy, string? SortDir, int? Page, int? PageSize);
+    string? SortBy, string? SortDir, int? Page, int? PageSize, int? TzOffsetMinutes = null);
 
 public sealed record StreamEvent(string Type, object Data);
 

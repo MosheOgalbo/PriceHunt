@@ -20,6 +20,7 @@ export class ApiService {
       .set('pageSize', f.pageSize);
     if (f.startDate) params = params.set('startDate', f.startDate);
     if (f.endDate) params = params.set('endDate', f.endDate);
+    if (f.startDate || f.endDate) params = params.set('tzOffsetMinutes', String(new Date().getTimezoneOffset()));
     if (f.fromLocation) params = params.set('fromLocation', f.fromLocation);
     if (f.toLocation) params = params.set('toLocation', f.toLocation);
     f.suppliers.forEach(s => (params = params.append('suppliers', s)));
