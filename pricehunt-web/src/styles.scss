@@ -2,7 +2,7 @@
 @include mat.core();
 
 $primary: mat.define-palette(mat.$indigo-palette, 600);
-$accent: mat.define-palette(mat.$teal-palette, A400);
+$accent: mat.define-palette(mat.$indigo-palette, 500);
 $theme: mat.define-light-theme((
   color: (primary: $primary, accent: $accent),
   typography: mat.define-typography-config(),
@@ -15,16 +15,28 @@ body {
   margin: 0;
   color: #1c2434;
   font-family: 'Noto Sans', 'Noto Sans Hebrew', 'Noto Sans Arabic', sans-serif;
-  background:
-    radial-gradient(900px 420px at -10% -20%, rgba(57, 73, 171, 0.14), transparent 55%),
-    radial-gradient(700px 360px at 110% -10%, rgba(0, 137, 123, 0.12), transparent 50%),
-    #f3f5fb;
+  background: #eef1f6;
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
+  align-items: start;
+}
+.lane-mark {
+  display: grid; place-items: center; height: 56px; margin-top: 22px; color: #3949ab;
+}
+.lane-mark .mat-icon { font-size: 20px; width: 20px; height: 20px; }
+@media (max-width: 640px) {
+  .lane { grid-template-columns: 1fr; }
+  .lane-mark { height: 28px; margin: 0; transform: rotate(90deg); }
+  html[dir='rtl'] .lane-mark { transform: rotate(-90deg); }
 }
 
 .page-head {
-  margin: 4px 0 20px;
-  h1 { margin: 0 0 6px; font-size: 28px; font-weight: 700; letter-spacing: -0.4px; }
-  p { margin: 0; max-width: 62ch; color: #5c677d; line-height: 1.5; }
+  margin: 0 0 18px;
+  h1 { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
+  p { margin: 0; max-width: 62ch; color: #5c677d; line-height: 1.55; }
 }
 .eyebrow {
   margin: 0 0 6px;
@@ -45,11 +57,28 @@ html[dir='rtl'] .arrow { display: inline-block; transform: scaleX(-1); }
   color: #5c6b86;
 }
 
-.date-range .mat-date-range-input-container { width: 100%; }
+.date-range .mat-date-range-input-container {
+  width: auto;
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  gap: 0;
+}
 .date-range .mat-date-range-input-wrapper {
-  flex: 1 1 0;
+  flex: 0 0 auto;
+  width: auto;
   max-width: none;
   min-width: 0;
+}
+.date-range .mat-date-range-input-inner {
+  field-sizing: content;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+}
+.date-range .mat-date-range-input-separator {
+  flex: none;
+  margin-inline: 4px;
+  color: #8b95ab;
 }
 .date-range input[matStartDate] { color: #137333; font-weight: 650; }
 .date-range input[matEndDate] { color: #b3261e; font-weight: 650; }

@@ -6,8 +6,11 @@
 
 <mat-card class="panel" appearance="outlined">
   <form [formGroup]="filters" (ngSubmit)="apply()" class="filters">
-    <app-place-field formControlName="fromLocation" [label]="i18n.t('fromLocation')" [placeholder]="i18n.t('placeHint')" icon="trip_origin" [required]="true" [showErrors]="submitted()" />
-    <app-place-field formControlName="toLocation" [label]="i18n.t('toLocation')" [placeholder]="i18n.t('placeHint')" icon="place" [required]="true" [showErrors]="submitted()" />
+    <div class="lane">
+      <app-place-field formControlName="fromLocation" [label]="i18n.t('fromLocation')" [placeholder]="i18n.t('placeHint')" icon="trip_origin" [required]="true" [showErrors]="submitted()" />
+      <span class="lane-mark" aria-hidden="true"><mat-icon class="arrow">arrow_forward</mat-icon></span>
+      <app-place-field formControlName="toLocation" [label]="i18n.t('toLocation')" [placeholder]="i18n.t('placeHint')" icon="place" [required]="true" [showErrors]="submitted()" />
+    </div>
 
     <mat-form-field appearance="outline" class="date-range" floatLabel="always" subscriptSizing="dynamic">
       <mat-label>{{ i18n.t('dateRange') }}</mat-label>
@@ -72,12 +75,23 @@
     >
       <ng-container matColumnDef="date">
         <th mat-header-cell *matHeaderCellDef mat-sort-header="date">{{ i18n.t('date') }}</th>
-        <td mat-cell *matCellDef="let r">{{ r.timestampUtc | date: 'dd/MM/yyyy HH:mm:ss' : undefined : i18n.locale() }}</td>
+        <td mat-cell *matCellDef="let r">
+          <span class="when">
+            <span>{{ r.timestampUtc | date: 'dd/MM/yyyy' : undefined : i18n.locale() }}</span>
+            <small class="ltr">{{ r.timestampUtc | date: 'HH:mm:ss' : undefined : i18n.locale() }}</small>
+          </span>
+        </td>
       </ng-container>
 
       <ng-container matColumnDef="route">
         <th mat-header-cell *matHeaderCellDef mat-sort-header="route">{{ i18n.t('route') }}</th>
-        <td mat-cell *matCellDef="let r">{{ routePlace(r.fromLocation) }} <span class="arrow">→</span> {{ routePlace(r.toLocation) }}</td>
+        <td mat-cell *matCellDef="let r">
+          <span class="lane-cell">
+            <span>{{ routePlace(r.fromLocation) }}</span>
+            <span class="arrow">→</span>
+            <span>{{ routePlace(r.toLocation) }}</span>
+          </span>
+        </td>
       </ng-container>
 
       <ng-container matColumnDef="supplier">
@@ -88,7 +102,7 @@
       <ng-container matColumnDef="price">
         <th mat-header-cell *matHeaderCellDef mat-sort-header="price">{{ i18n.t('price') }}</th>
         <td mat-cell *matCellDef="let r">
-          @if (r.succeeded) { <strong>{{ r.price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}</strong> }
+          @if (r.succeeded) { <strong class="money">{{ r.price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}</strong> }
           @else if (isNoResponse(r)) { <span class="silent" [matTooltip]="i18n.t('noResponseDetail')">{{ i18n.t('noResponse') }}</span> }
           @else { <span class="failed" [matTooltip]="r.error ?? ''">{{ i18n.t('failed') }}</span> }
         </td>

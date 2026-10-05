@@ -1,27 +1,38 @@
 :host { display: block; }
 .panel {
-  padding: 20px 24px; margin-bottom: 20px; border-radius: 18px;
-  background: #fff; box-shadow: 0 12px 32px rgba(28, 36, 52, 0.05);
+  padding: 20px 22px; margin-bottom: 20px; border-radius: 16px;
+  background: #fff; border-color: #e4e8f2;
+  box-shadow: 0 1px 2px rgba(28, 36, 52, 0.04), 0 10px 28px rgba(28, 36, 52, 0.05);
 }
 .filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 28px;
-  row-gap: 18px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.9fr);
+  column-gap: 20px;
+  row-gap: 8px;
   align-items: start;
 }
 .filters > * { min-width: 0; }
-@media (max-width: 640px) {
+.suppliers-field { grid-column: 1 / -1; }
+@media (max-width: 900px) {
   .filters { grid-template-columns: 1fr; }
 }
 .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 12px; }
 .table-card { padding: 0; overflow: hidden; }
 .table-wrap { overflow-x: auto; }
-table { width: 100%; }
-th.mat-mdc-header-cell { background: #f7f8fd; font-weight: 700; color: #3c465c; }
+table { width: 100%; min-width: 820px; }
+th.mat-mdc-header-cell {
+  background: #f6f7fb; font-weight: 700; color: #3c465c; font-size: 13px;
+}
+td.mat-mdc-cell { border-bottom-color: #eef0f5; }
+td.mat-column-supplier, td.mat-column-route { font-weight: 700; white-space: nowrap; }
+.when { display: flex; flex-direction: column; line-height: 1.25; white-space: nowrap; }
+.when small { color: #6b7590; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lane-cell { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.money { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 15px; }
 tr.mat-mdc-row.clickable { cursor: pointer; }
-tr.mat-mdc-row:hover { background: #f8f9ff; }
-.arrow { color: #9aa3b8; margin: 0 4px; }
+tr.mat-mdc-row:hover { background: #f7f8ff; }
+mat-paginator { border-top: 1px solid #eef0f5; }
+.lane-cell .arrow { color: #9aa3b8; }
 .failed, .silent {
   display: inline-block;
   padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;

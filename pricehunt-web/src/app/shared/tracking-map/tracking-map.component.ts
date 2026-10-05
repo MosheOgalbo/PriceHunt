@@ -18,13 +18,13 @@ import { routeLayout, trackingIds } from '../../core/tracking';
           <p class="waybill ltr">{{ ids.waybill }}</p>
         </div>
         <div class="meta">
-          <span><em>{{ i18n.t('shipmentId') }}</em> {{ ids.shipmentId }}</span>
-          <span><em>{{ i18n.t('licensePlate') }}</em> {{ ids.plate }}</span>
+          <span><em>{{ i18n.t('shipmentId') }}</em><b class="ltr">{{ ids.shipmentId }}</b></span>
+          <span><em>{{ i18n.t('licensePlate') }}</em><b class="ltr">{{ ids.plate }}</b></span>
         </div>
       </header>
       <div class="map" role="img" [attr.aria-label]="i18n.t('liveMap')">
         <svg [attr.viewBox]="'0 0 ' + layout.width + ' ' + layout.height" aria-hidden="true">
-          <rect width="100%" height="100%" fill="#d7e4ea" />
+          <rect width="100%" height="100%" fill="#d5e4ec" />
           <g class="grid" stroke="#c5d5de">
             <path d="M0 70 H640 M0 140 H640 M0 210 H640 M160 0 V280 M320 0 V280 M480 0 V280" />
           </g>
@@ -52,26 +52,37 @@ import { routeLayout, trackingIds } from '../../core/tracking';
           <mat-icon>local_shipping</mat-icon>
         </span>
       </div>
-      <p class="note">{{ shown < 0.98 ? i18n.t('onTheWay') : i18n.t('arrived') }}</p>
+      <p class="note" [class.done]="!caption && shown >= 0.98">
+        <mat-icon>{{ caption ? 'alt_route' : (shown < 0.98 ? 'local_shipping' : 'where_to_vote') }}</mat-icon>
+        {{ caption || (shown < 0.98 ? i18n.t('onTheWay') : i18n.t('arrived')) }}
+      </p>
     </section>
   `,
   styles: `
     :host { display: block; }
-    .track { display: grid; gap: 10px; }
+    .track {
+      display: grid; gap: 12px; padding: 14px;
+      border: 1px solid #e4e8f2; border-radius: 16px; background: #f8f9fc;
+    }
     header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
     .kicker { margin: 0; color: #6b7590; font-size: 12px; font-weight: 700; }
-    .waybill { margin: 2px 0 0; font-size: 22px; font-weight: 800; letter-spacing: 0.04em; color: #1c2434; }
+    .waybill {
+      margin: 2px 0 0; font-size: 22px; font-weight: 800; letter-spacing: 0.04em; color: #1c2434;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
     .ltr { direction: ltr; unicode-bidi: isolate; }
-    .meta { display: flex; flex-direction: column; gap: 2px; color: #1c2434; font-weight: 700; font-size: 13px; }
-    .meta em { color: #6b7590; font-style: normal; font-weight: 650; margin-inline-end: 6px; }
+    .meta { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+    .meta span { display: flex; gap: 8px; align-items: baseline; }
+    .meta em { color: #6b7590; font-style: normal; font-weight: 600; }
+    .meta b { font-weight: 800; }
     .map {
-      position: relative; direction: ltr; border-radius: 16px; overflow: hidden;
+      position: relative; direction: ltr; border-radius: 12px; overflow: hidden;
       box-shadow: inset 0 0 0 1px #c5d5de;
     }
     svg { display: block; width: 100%; height: auto; }
     .grid { fill: none; stroke-width: 1; }
-    .casing { fill: none; stroke: #fff; stroke-width: 14; stroke-linecap: round; }
-    .route { fill: none; stroke: #3949ab; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 1 10; }
+    .casing { fill: none; stroke: #fff; stroke-width: 12; stroke-linecap: round; }
+    .route { fill: none; stroke: #3949ab; stroke-width: 4; stroke-linecap: round; }
     .city { font-size: 13px; font-weight: 700; fill: #1c2434; text-anchor: middle; }
     .truck {
       position: absolute; width: 36px; height: 36px; border-radius: 10px;
@@ -81,7 +92,12 @@ import { routeLayout, trackingIds } from '../../core/tracking';
     }
     .truck mat-icon { color: #fff; font-size: 20px; width: 20px; height: 20px; }
     .truck.driving { animation: bob 0.7s ease-in-out infinite; }
-    .note { margin: 0; color: #3949ab; font-weight: 700; }
+    .note {
+      margin: 0; display: flex; align-items: center; gap: 8px;
+      color: #3949ab; font-weight: 700;
+    }
+    .note mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .note.done { color: #146c36; }
     @keyframes bob {
       0%, 100% { margin-top: 0; }
       50% { margin-top: -3px; }
@@ -101,6 +117,8 @@ export class TrackingMapComponent implements OnChanges, OnDestroy {
   @Input() live = false;
   /** When set, the truck follows progress instead of gliding on its own. */
   @Input() follow = false;
+  /** Replaces the driving status. Used when the map shows a route to price, not a finished shipment. */
+  @Input() caption = '';
 
   private glide = 0.08;
   private timer?: number;

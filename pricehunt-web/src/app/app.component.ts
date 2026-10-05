@@ -47,13 +47,11 @@ import { LanguageService } from './core/i18n/language.service';
   `,
   styles: `
     .topbar {
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(10px);
+      background: #fff;
       border-bottom: 1px solid #e4e8f2;
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
       gap: 12px;
       position: sticky; top: 0; z-index: 10;
-      height: auto; min-height: 68px; flex-wrap: wrap;
+      height: auto; min-height: 64px; flex-wrap: wrap;
       padding-inline: 20px;
     }
     .brand-lockup { display: flex; align-items: center; gap: 10px; }
@@ -61,15 +59,19 @@ import { LanguageService } from './core/i18n/language.service';
       width: 36px; height: 36px; border-radius: 10px;
       display: grid; place-items: center;
       background: #3949ab; color: #fff;
+      box-shadow: 0 6px 14px rgba(57, 73, 171, 0.28);
     }
     .logo mat-icon { color: #fff; font-size: 20px; width: 20px; height: 20px; }
-    .titles { display: flex; flex-direction: column; line-height: 1.1; }
-    .brand { font-weight: 700; font-size: 18px; letter-spacing: 0.2px; }
-    .tag { font-size: 11px; font-weight: 500; color: #6b7590; letter-spacing: 0.04em; }
+    .titles { display: flex; flex-direction: column; line-height: 1.15; }
+    .brand { font-weight: 800; font-size: 17px; letter-spacing: -0.02em; }
+    .tag { font-size: 11px; font-weight: 600; color: #6b7590; }
     .spacer { flex: 1; }
-    nav { display: flex; flex-wrap: wrap; }
-    nav a { border-radius: 999px; }
-    nav a.active { background: #e8ebfa; color: #3949ab; }
+    nav {
+      display: flex; flex-wrap: wrap; gap: 2px;
+      padding: 4px; border-radius: 999px; background: #f2f4f8;
+    }
+    nav a { border-radius: 999px; min-width: 0; }
+    nav a.active { background: #fff; color: #3949ab; box-shadow: 0 1px 2px rgba(28, 36, 52, 0.08); }
     .lang-trigger {
       display: inline-flex; align-items: center; gap: 6px;
       height: 36px; padding-block: 0; padding-inline: 12px 10px;
@@ -81,7 +83,7 @@ import { LanguageService } from './core/i18n/language.service';
     .lang-trigger mat-icon { font-size: 18px; width: 18px; height: 18px; color: #3949ab; }
     .lang-trigger .caret { color: #6b7590; }
     .lang-trigger:hover { border-color: #3949ab; background: #f7f8fd; }
-    .page { max-width: 1040px; margin: 0 auto; padding: 28px 16px 64px; }
+    .page { max-width: 1120px; margin: 0 auto; padding: 28px 20px 72px; }
   `,
 })
 export class AppComponent {

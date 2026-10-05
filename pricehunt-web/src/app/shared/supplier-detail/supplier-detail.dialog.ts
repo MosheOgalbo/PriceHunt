@@ -37,9 +37,10 @@ export interface SupplierDetailData {
         [from]="data.fromLocation"
         [to]="data.toLocation"
         [seed]="data.seed"
-        [progress]="data.outcome === 'ok' ? 1 : 0.4"
-        [live]="data.outcome === 'searching'"
-        [follow]="data.outcome !== 'searching'"
+        [progress]="0"
+        [live]="false"
+        [follow]="true"
+        [caption]="i18n.t('requestedRoute')"
       />
       <p class="name">{{ data.supplier }}</p>
       <p class="status" [attr.data-outcome]="data.outcome">{{ status() }}</p>
@@ -102,15 +103,20 @@ export interface SupplierDetailData {
     .status {
       display: inline-block; margin: 8px 0 16px; padding: 4px 12px; border-radius: 999px;
       font-size: 12px; font-weight: 700; background: #e8eaf6; color: #3949ab;
-      &[data-outcome='ok'] { background: #e6f4ea; color: #1e7e34; }
-      &[data-outcome='failed'], &[data-outcome='noResponse'] { background: #fdecea; color: #b3261e; }
+      &[data-outcome='ok'] { background: #e6f4ea; color: #146c36; }
+      &[data-outcome='noResponse'] { background: #fff1d6; color: #8a5a00; }
+      &[data-outcome='failed'] { background: #fdecea; color: #b3261e; }
     }
     app-tracking-map { margin-bottom: 16px; }
-    dl { margin: 0; display: grid; gap: 12px; }
-    div { display: flex; justify-content: space-between; gap: 16px; }
-    dt { color: #6b7590; }
-    dd { margin: 0; font-weight: 650; text-align: end; }
-    .price { font-size: 18px; }
+    dl { margin: 0; display: grid; gap: 0; border: 1px solid #e4e8f2; border-radius: 12px; overflow: hidden; }
+    dl > div {
+      display: flex; justify-content: space-between; gap: 16px;
+      padding: 12px 14px; background: #fff;
+    }
+    dl > div + div { border-top: 1px solid #eef0f5; }
+    dt { color: #6b7590; font-weight: 600; }
+    dd { margin: 0; font-weight: 700; text-align: end; }
+    .price { font-size: 18px; font-variant-numeric: tabular-nums; }
     .ltr { direction: ltr; unicode-bidi: isolate; }
     .arrow { color: #9aa3b8; }
   `,
@@ -121,8 +127,8 @@ export class SupplierDetailDialog {
 
   status(): string {
     const outcome = this.data.outcome;
-    if (outcome === 'searching') return this.i18n.t('onTheWay');
-    if (outcome === 'ok') return this.i18n.t('completed');
+    if (outcome === 'searching') return this.i18n.t('awaitingQuote');
+    if (outcome === 'ok') return this.i18n.t('quoteReceived');
     if (outcome === 'noResponse') return this.i18n.t('noResponse');
     return this.i18n.t('failed');
   }

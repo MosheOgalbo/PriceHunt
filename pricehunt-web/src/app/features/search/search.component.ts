@@ -2,13 +2,13 @@ import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatCardModule } from '@angular/material/card';
 import { MAT_DATE_RANGE_SELECTION_STRATEGY, MatDatepickerIntl, MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatListModule } from '@angular/material/list';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
@@ -32,8 +32,8 @@ interface ResultSlot {
   result: SupplierResult | null;
 }
 
-/** Row height (64) + gap (12). Rows are absolutely positioned by index so reordering animates smoothly. */
-const ROW_STEP = 76;
+/** Row height (72) + gap (12). Rows are absolutely positioned by index so reordering animates smoothly. */
+const ROW_STEP = 84;
 
 @Component({
   selector: 'app-search',
@@ -42,7 +42,7 @@ const ROW_STEP = 76;
   imports: [
     ReactiveFormsModule, CurrencyPipe, DecimalPipe,
     MatCardModule, MatFormFieldModule, MatInputModule, MatDatepickerModule,
-    MatListModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatDialogModule,
+    MatButtonModule, MatCheckboxModule, MatIconModule, MatProgressBarModule, MatDialogModule,
     PlaceFieldComponent, TrackingMapComponent,
   ],
   templateUrl: './search.component.html',
@@ -64,6 +64,13 @@ export class SearchComponent implements OnInit, OnDestroy {
 
   readonly rowStep = ROW_STEP;
   readonly supplierNames = signal<string[]>([]);
+  readonly supplierQuery = signal('');
+  readonly visibleSuppliers = computed(() => {
+    const query = this.supplierQuery().trim().toLowerCase();
+    const names = this.supplierNames();
+    if (!query) return names;
+    return names.filter(name => name.toLowerCase().includes(query));
+  });
 
   readonly submitted = signal(false);
   readonly form = new FormGroup({
@@ -83,6 +90,7 @@ export class SearchComponent implements OnInit, OnDestroy {
   readonly answered = computed(() => this.results().filter(r => r.outcome !== 'noResponse').length);
   readonly total = computed(() => this.queried().length);
   readonly progress = computed(() => (this.total() ? (this.answered() / this.total()) * 100 : 0));
+  readonly bestPrice = computed(() => this.sorted().find(r => r.succeeded)?.price ?? null);
   /** 0 at the start of the road, 1 when every supplier result is on screen. */
   readonly travel = computed(() => {
     const total = this.total();
@@ -113,6 +121,7 @@ export class SearchComponent implements OnInit, OnDestroy {
   readonly statusLabel = computed(() => {
     const state = this.state();
     if (state === 'idle') return '';
+    if (state === 'completed') return this.i18n.t('quotesIn');
     return this.i18n.t(state === 'error' ? 'connectionError' : state);
   });
 
@@ -136,8 +145,41 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.cancel(false);
   }
 
-  selectAll(): void { this.form.controls.suppliers.setValue(this.supplierNames()); }
-  clearAll(): void { this.form.controls.suppliers.setValue([]); }
+  queryText(event: Event): string {
+    return (event.target as HTMLInputElement).value;
+  }
+
+  isPicked(name: string): boolean {
+    return this.form.controls.suppliers.value.includes(name);
+  }
+
+  allVisibleSelected(): boolean {
+    const visible = this.visibleSuppliers();
+    return visible.length > 0 && visible.every(name => this.isPicked(name));
+  }
+
+  someVisibleSelected(): boolean {
+    const visible = this.visibleSuppliers();
+    const picked = visible.filter(name => this.isPicked(name)).length;
+    return picked > 0 && picked < visible.length;
+  }
+
+  setVisible(selected: boolean): void {
+    const visible = new Set(this.visibleSuppliers());
+    const current = this.form.controls.suppliers.value;
+    const next = selected
+      ? [...new Set([...current, ...this.visibleSuppliers()])]
+      : current.filter(name => !visible.has(name));
+    this.form.controls.suppliers.setValue(next);
+    this.form.controls.suppliers.markAsTouched();
+  }
+
+  toggleSupplier(name: string): void {
+    const current = this.form.controls.suppliers.value;
+    const next = current.includes(name) ? current.filter(item => item !== name) : [...current, name];
+    this.form.controls.suppliers.setValue(next);
+    this.form.controls.suppliers.markAsTouched();
+  }
 
   private readonly rangeStart = signal<Date | null>(null);
   readonly blockBeforeStart = computed(() => {
@@ -161,6 +203,7 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.errorMessage.set(null);
     this.state.set('idle');
     this.rangeStart.set(null);
+    this.supplierQuery.set('');
     this.formDirective?.resetForm({
       fromLocation: '',
       toLocation: '',

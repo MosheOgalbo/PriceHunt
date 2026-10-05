@@ -7,23 +7,25 @@
 <mat-card class="panel" appearance="outlined">
   <form [formGroup]="form" (ngSubmit)="search()">
     <div class="grid">
-      <app-place-field
-        formControlName="fromLocation"
-        [label]="i18n.t('fromLocation')"
-        [placeholder]="i18n.t('placeHint')"
-        icon="trip_origin"
-        [required]="true"
-        [showErrors]="submitted()"
-      />
-
-      <app-place-field
-        formControlName="toLocation"
-        [label]="i18n.t('toLocation')"
-        [placeholder]="i18n.t('placeHint')"
-        icon="place"
-        [required]="true"
-        [showErrors]="submitted()"
-      />
+      <div class="lane">
+        <app-place-field
+          formControlName="fromLocation"
+          [label]="i18n.t('fromLocation')"
+          [placeholder]="i18n.t('placeHint')"
+          icon="trip_origin"
+          [required]="true"
+          [showErrors]="submitted()"
+        />
+        <span class="lane-mark" aria-hidden="true"><mat-icon class="arrow">arrow_forward</mat-icon></span>
+        <app-place-field
+          formControlName="toLocation"
+          [label]="i18n.t('toLocation')"
+          [placeholder]="i18n.t('placeHint')"
+          icon="place"
+          [required]="true"
+          [showErrors]="submitted()"
+        />
+      </div>
 
       <mat-form-field appearance="outline" class="date-range" floatLabel="always" subscriptSizing="dynamic">
         <mat-label>{{ i18n.t('dateRange') }}</mat-label>
@@ -48,19 +50,59 @@
       </mat-form-field>
     </div>
 
-    <div class="suppliers-head">
-      <h3>{{ i18n.t('suppliers') }}</h3>
-      <span class="selected">{{ i18n.t('selectedCount', { count: form.controls.suppliers.value.length }) }}</span>
-      <span class="spacer"></span>
-      <button mat-button type="button" (click)="selectAll()">{{ i18n.t('all') }}</button>
-      <button mat-button type="button" (click)="clearAll()">{{ i18n.t('none') }}</button>
-    </div>
-    <mat-selection-list formControlName="suppliers" class="supplier-list">
-      @for (name of supplierNames(); track name) {
-        <mat-list-option checkboxPosition="before" [value]="name">{{ name }}</mat-list-option>
+    <mat-form-field appearance="outline" class="supplier-search" floatLabel="always" subscriptSizing="dynamic">
+      <mat-label>{{ i18n.t('suppliers') }}</mat-label>
+      <mat-icon matIconPrefix>search</mat-icon>
+      <input
+        matInput
+        [value]="supplierQuery()"
+        (input)="supplierQuery.set(queryText($event))"
+        [placeholder]="i18n.t('supplierSearch')"
+      />
+      <span matTextSuffix class="selected">{{ i18n.t('selectedCount', { count: form.controls.suppliers.value.length }) }}</span>
+      @if (supplierQuery()) {
+        <button mat-icon-button matIconSuffix type="button" (click)="supplierQuery.set('')" [attr.aria-label]="i18n.t('none')">
+          <mat-icon>close</mat-icon>
+        </button>
       }
-    </mat-selection-list>
-    @if (form.controls.suppliers.touched && form.controls.suppliers.invalid) {
+    </mat-form-field>
+    <div class="supplier-table-wrap">
+      <table class="supplier-table">
+        <thead>
+          <tr>
+            <th class="check">
+              <mat-checkbox
+                [checked]="allVisibleSelected()"
+                [indeterminate]="someVisibleSelected()"
+                (change)="setVisible($event.checked)"
+                [aria-label]="i18n.t('suppliers')"
+              />
+            </th>
+            <th>{{ i18n.t('supplier') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (name of visibleSuppliers(); track name) {
+            <tr [class.on]="isPicked(name)" (click)="toggleSupplier(name)">
+              <td class="check">
+                <mat-checkbox
+                  [checked]="isPicked(name)"
+                  (click)="$event.stopPropagation()"
+                  (change)="toggleSupplier(name)"
+                  [aria-label]="name"
+                />
+              </td>
+              <td>{{ name }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td class="empty" colspan="2">{{ i18n.t('noSupplierMatch') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if ((submitted() || form.controls.suppliers.touched) && form.controls.suppliers.invalid) {
       <p class="error">{{ i18n.t('selectSupplier') }}</p>
     }
 
@@ -85,6 +127,12 @@
     <div class="status-bar">
       <span class="badge" [attr.data-state]="state()">{{ statusLabel() }}</span>
       <span class="count">{{ i18n.t('respondedCount', { answered: answered(), total: total() }) }}</span>
+      @if (bestPrice(); as price) {
+        <span class="best-callout">
+          {{ i18n.t('bestOffer') }}
+          <strong>{{ price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}</strong>
+        </span>
+      }
     </div>
     <mat-progress-bar mode="determinate" [value]="progress()" />
 
@@ -92,9 +140,10 @@
       [from]="form.controls.fromLocation.value"
       [to]="form.controls.toLocation.value"
       [seed]="trackSeed()"
-      [progress]="travel()"
-      [live]="isSearching()"
+      [progress]="0"
+      [live]="false"
       [follow]="true"
+      [caption]="i18n.t('requestedRoute')"
     />
 
     @if (errorMessage()) {
@@ -114,22 +163,25 @@
           <button type="button" class="row-hit" (click)="openSupplier(slot)">
             @if (slot.result; as r) {
               <div class="info">
-                <strong>{{ r.supplier }}</strong>
-                <small>{{ waybill(slot.supplier) }} · {{ detail(r) }}</small>
+                <span class="name-line">
+                  <strong>{{ r.supplier }}</strong>
+                  @if (r.succeeded && i === 0) {
+                    <em class="best-tag">{{ i18n.t('bestOffer') }}</em>
+                  }
+                </span>
+                <small><span class="ltr">{{ waybill(slot.supplier) }}</span> · {{ detail(r) }}</small>
               </div>
-              <span class="price">
-                @if (r.succeeded) {
-                  {{ r.price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}
-                } @else if (r.outcome === 'noResponse') {
-                  <mat-icon>schedule</mat-icon> {{ i18n.t('noResponse') }}
-                } @else {
-                  <mat-icon>error_outline</mat-icon> {{ i18n.t('failed') }}
-                }
-              </span>
+              @if (r.succeeded) {
+                <span class="price">{{ r.price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}</span>
+              } @else if (r.outcome === 'noResponse') {
+                <span class="chip silent"><mat-icon>schedule</mat-icon> {{ i18n.t('noResponse') }}</span>
+              } @else {
+                <span class="chip failed"><mat-icon>error_outline</mat-icon> {{ i18n.t('failed') }}</span>
+              }
             } @else {
               <div class="info">
                 <strong>{{ slot.supplier }}</strong>
-                <small>{{ waybill(slot.supplier) }} · {{ i18n.t('onTheWay') }}</small>
+                <small><span class="ltr">{{ waybill(slot.supplier) }}</span> · {{ i18n.t('awaitingQuote') }}</small>
               </div>
               <span class="scan" aria-hidden="true"><i></i><i></i><i></i></span>
             }
