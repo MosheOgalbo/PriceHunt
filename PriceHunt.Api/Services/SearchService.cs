@@ -13,7 +13,6 @@ namespace PriceHunt.Api.Services;
 public sealed class SearchService
 {
     public const string NoResponseError = "No response before the search ended";
-    public const string CircuitOpenError = "Supplier is temporarily skipped after repeated failures";
 
     public static readonly TimeSpan DefaultMaxDuration = TimeSpan.FromSeconds(6);
 
@@ -22,22 +21,19 @@ public sealed class SearchService
     private readonly TimeSpan _maxDuration;
     private readonly ILogger<SearchService>? _logger;
     private readonly SupplierExecutionOptions _execution;
-    private readonly SupplierCircuitBreaker _circuits;
 
     public SearchService(
         IDbContextFactory<PriceHuntDbContext> dbFactory,
         IEnumerable<ISupplier> suppliers,
         TimeSpan? maxDuration = null,
         ILogger<SearchService>? logger = null,
-        SupplierExecutionOptions? execution = null,
-        SupplierCircuitBreaker? circuits = null)
+        SupplierExecutionOptions? execution = null)
     {
         _dbFactory = dbFactory;
         _all = suppliers.ToList();
         _maxDuration = maxDuration ?? DefaultMaxDuration;
         _logger = logger;
         _execution = execution ?? SupplierExecutionOptions.Default;
-        _circuits = circuits ?? new SupplierCircuitBreaker(_execution);
     }
 
     private sealed record Outcome(string Supplier, decimal? Price, int ResponseTimeMs, DateTime TimestampUtc, string? Error);
@@ -71,6 +67,7 @@ public sealed class SearchService
             "Search {SearchId} started from {FromLocation} to {ToLocation} across {SupplierCount} suppliers",
             search.Id, criteria.FromLocation, criteria.ToLocation, selected.Count);
 
+        var deadline = search.StartedAtUtc + _maxDuration;
         using var timeoutCts = new CancellationTokenSource(_maxDuration);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
@@ -106,14 +103,21 @@ public sealed class SearchService
                     yield return await PersistAsync(outcome);
             }
 
-            // Workers may still be writing the real error after the window closes.
+            // Close within the search deadline. If the budget is already spent, allow a short
+            // drain so cancelled workers can still write a real failure (not "no response").
+            var remaining = deadline - DateTime.UtcNow;
+            var drain = remaining > TimeSpan.Zero ? remaining : TimeSpan.FromMilliseconds(150);
             try
             {
-                await Task.WhenAll(workers).WaitAsync(TimeSpan.FromSeconds(2));
+                await Task.WhenAll(workers).WaitAsync(drain);
             }
             catch (TimeoutException)
             {
-                _logger?.LogWarning("Search {SearchId} stopped waiting for supplier tasks", search.Id);
+                _logger?.LogWarning("Search {SearchId} hit the hard deadline while closing supplier tasks", search.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "Search {SearchId} supplier tasks ended after the window closed", search.Id);
             }
 
             while (reader.TryRead(out var late))
@@ -167,7 +171,7 @@ public sealed class SearchService
             {
                 SearchId = search.Id,
                 Supplier = outcome.Supplier,
-                Price = outcome.Price is null ? null : (double)outcome.Price,
+                PriceCents = Money.ToCents(outcome.Price),
                 ResponseTimeMs = outcome.ResponseTimeMs,
                 TimestampUtc = outcome.TimestampUtc,
                 Succeeded = outcome.Error is null,
@@ -189,13 +193,6 @@ public sealed class SearchService
     private async Task QuerySupplierAsync(
         ISupplier supplier, SearchCriteria criteria, ChannelWriter<Outcome> writer, CancellationToken ct)
     {
-        if (!_circuits.Allow(supplier.Name))
-        {
-            _logger?.LogWarning("Supplier {Supplier} skipped because its circuit is open", supplier.Name);
-            writer.TryWrite(new Outcome(supplier.Name, null, 0, DateTime.UtcNow, CircuitOpenError));
-            return;
-        }
-
         var sw = Stopwatch.StartNew();
         Exception? last = null;
         for (var attempt = 1; attempt <= _execution.MaxAttempts; attempt++)
@@ -211,7 +208,6 @@ public sealed class SearchService
             try
             {
                 var price = await supplier.GetPriceAsync(criteria, attemptCts.Token);
-                _circuits.RecordSuccess(supplier.Name);
                 writer.TryWrite(new Outcome(supplier.Name, price, (int)sw.ElapsedMilliseconds, DateTime.UtcNow, null));
                 return;
             }
@@ -232,8 +228,6 @@ public sealed class SearchService
             var retry = attempt < _execution.MaxAttempts && !ct.IsCancellationRequested;
             if (!retry)
             {
-                if (last is not TimeoutException)
-                    _circuits.RecordFailure(supplier.Name);
                 writer.TryWrite(new Outcome(
                     supplier.Name, null, (int)sw.ElapsedMilliseconds, DateTime.UtcNow, last?.Message ?? "Supplier failed"));
                 return;

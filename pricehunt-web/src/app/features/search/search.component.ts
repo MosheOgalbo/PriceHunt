@@ -326,7 +326,6 @@ export class SearchComponent implements OnInit, OnDestroy {
     if ((r.error ?? '').includes('temporarily unavailable')) {
       return this.i18n.t('supplierUnavailable', { name: r.supplier });
     }
-    if ((r.error ?? '').includes('temporarily skipped')) return this.i18n.t('circuitOpen');
     return r.error ?? this.i18n.t('failed');
   }
 

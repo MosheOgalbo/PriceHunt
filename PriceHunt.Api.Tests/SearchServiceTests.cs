@@ -57,6 +57,7 @@ public sealed class SearchServiceTests : IDisposable
         Assert.Equal(SearchStatus.Completed, saved.Status);
         Assert.Equal(3, saved.Responses.Count);
         Assert.Equal(3, saved.SelectedSuppliers.Count);
+        Assert.Equal(3000, saved.Responses.Single(r => r.Supplier == "Slow").PriceCents);
         Assert.NotNull(saved.FinishedAtUtc);
     }
 
@@ -76,7 +77,7 @@ public sealed class SearchServiceTests : IDisposable
         Assert.Equal(SearchStatus.Completed, saved.Status);
         var failed = saved.Responses.Single(r => r.Supplier == "Bad");
         Assert.False(failed.Succeeded);
-        Assert.Null(failed.Price);
+        Assert.Null(failed.PriceCents);
         Assert.Equal("boom", failed.Error);
     }
 
@@ -167,52 +168,6 @@ public sealed class SearchServiceTests : IDisposable
         Assert.Equal("failed", result.Outcome);
         Assert.Equal("boom", result.Error);
         Assert.Equal("boom", LoadSearch().Responses.Single().Error);
-    }
-
-    [Fact]
-    public async Task Attempt_timeout_does_not_open_the_circuit()
-    {
-        var hang = new FakeSupplier("Slow", null);
-        var options = new SupplierExecutionOptions
-        {
-            MaxAttempts = 1,
-            AttemptTimeout = TimeSpan.FromMilliseconds(40),
-            FailureThreshold = 1,
-            BreakDuration = TimeSpan.FromMinutes(1),
-        };
-        var svc = new SearchService(
-            _db, [hang], TimeSpan.FromSeconds(2), execution: options, circuits: new SupplierCircuitBreaker(options));
-
-        await Run(svc, [hang]);
-        var again = await Run(svc, [hang]);
-
-        var second = Assert.IsType<ResultPayload>(Assert.Single(again, e => e.Type == "result").Data);
-        Assert.NotEqual(SearchService.CircuitOpenError, second.Error);
-        Assert.Equal(2, hang.Calls);
-    }
-
-    [Fact]
-    public async Task Open_circuit_skips_the_supplier_without_calling_it_again()
-    {
-        var bad = new FakeSupplier("Bad", 10, fail: true);
-        var options = new SupplierExecutionOptions
-        {
-            MaxAttempts = 2,
-            AttemptTimeout = TimeSpan.FromSeconds(2),
-            FailureThreshold = 1,
-            BreakDuration = TimeSpan.FromMinutes(1),
-        };
-        var svc = new SearchService(
-            _db, [bad], TimeSpan.FromSeconds(3), execution: options, circuits: new SupplierCircuitBreaker(options));
-
-        await Run(svc, [bad]);
-        Assert.Equal(2, bad.Calls);
-
-        var again = await Run(svc, [bad]);
-        var skipped = Assert.IsType<ResultPayload>(Assert.Single(again, e => e.Type == "result").Data);
-        Assert.Equal(SearchService.CircuitOpenError, skipped.Error);
-        Assert.Equal("failed", skipped.Outcome);
-        Assert.Equal(2, bad.Calls);
     }
 
     /// <summary>First call fails immediately. The retry waits until the search window cancels it.</summary>

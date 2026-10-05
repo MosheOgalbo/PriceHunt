@@ -27,7 +27,7 @@ public sealed class HistoryServiceTests : IDisposable
         db.SaveChanges();
     }
 
-    private static SearchRecord NewSearch(string from, string to, DateTime at, params (string Supplier, double Price)[] rs)
+    private static SearchRecord NewSearch(string from, string to, DateTime at, params (string Supplier, decimal Price)[] rs)
     {
         var s = new SearchRecord
         {
@@ -45,7 +45,7 @@ public sealed class HistoryServiceTests : IDisposable
             s.Responses.Add(new SupplierResponseRecord
             {
                 Supplier = supplier,
-                Price = price,
+                PriceCents = Money.ToCents(price),
                 ResponseTimeMs = 1000,
                 TimestampUtc = at,
                 Succeeded = true,
@@ -110,8 +110,8 @@ public sealed class HistoryServiceTests : IDisposable
         var page2 = await _svc.QueryAsync(Query(sortBy: "price", sortDir: "asc", page: 2, size: 3), default);
 
         Assert.Equal(4, page1.Total);
-        Assert.Equal(new double?[] { 30, 50, 80 }, page1.Items.Select(i => i.Price));
-        Assert.Equal(new double?[] { 120 }, page2.Items.Select(i => i.Price));
+        Assert.Equal(new decimal?[] { 30, 50, 80 }, page1.Items.Select(i => i.Price));
+        Assert.Equal(new decimal?[] { 120 }, page2.Items.Select(i => i.Price));
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class HistoryServiceTests : IDisposable
             {
                 SearchId = search.Id,
                 Supplier = "Silent",
-                Price = null,
+                PriceCents = null,
                 ResponseTimeMs = 6000,
                 TimestampUtc = Day1,
                 Succeeded = false,
@@ -136,7 +136,7 @@ public sealed class HistoryServiceTests : IDisposable
         var ascending = await _svc.QueryAsync(Query(sortBy: "price", sortDir: "asc", page: 1, size: 10), default);
         var descending = await _svc.QueryAsync(Query(sortBy: "price", sortDir: "desc", page: 1, size: 10), default);
 
-        Assert.Equal(new double?[] { 30, 50, 80, 120, null }, ascending.Items.Select(i => i.Price));
-        Assert.Equal(new double?[] { 120, 80, 50, 30, null }, descending.Items.Select(i => i.Price));
+        Assert.Equal(new decimal?[] { 30, 50, 80, 120, null }, ascending.Items.Select(i => i.Price));
+        Assert.Equal(new decimal?[] { 120, 80, 50, 30, null }, descending.Items.Select(i => i.Price));
     }
 }

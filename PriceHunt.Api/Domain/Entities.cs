@@ -30,7 +30,8 @@ public class SupplierResponseRecord
     public Guid SearchId { get; set; }
     public SearchRecord Search { get; set; } = null!;
     public string Supplier { get; set; } = "";
-    public double? Price { get; set; }
+    /// <summary>Quoted amount in integer cents (e.g. $129.99 → 12999). Null when there was no quote.</summary>
+    public long? PriceCents { get; set; }
     public int ResponseTimeMs { get; set; }
     public DateTime TimestampUtc { get; set; }
     public bool Succeeded { get; set; }

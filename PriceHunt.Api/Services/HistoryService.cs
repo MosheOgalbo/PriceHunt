@@ -46,7 +46,8 @@ public sealed class HistoryService(IDbContextFactory<PriceHuntDbContext> dbFacto
             .Skip((page - 1) * size).Take(size)
             .Select(r => new HistoryItem(
                 r.Id, r.SearchId, r.TimestampUtc, r.Search.FromLocation, r.Search.ToLocation, r.Supplier,
-                r.Price, r.ResponseTimeMs, r.Succeeded, r.Error, r.Search.Status.ToString()))
+                r.PriceCents == null ? null : r.PriceCents.Value / 100m,
+                r.ResponseTimeMs, r.Succeeded, r.Error, r.Search.Status.ToString()))
             .ToListAsync(ct);
 
         var result = items.Select(i => i with { TimestampUtc = DateTime.SpecifyKind(i.TimestampUtc, DateTimeKind.Utc) }).ToList();
@@ -71,8 +72,8 @@ public sealed class HistoryService(IDbContextFactory<PriceHuntDbContext> dbFacto
             : src.OrderBy(r => r.Search.FromLocation).ThenBy(r => r.Search.ToLocation),
         "supplier" => By(src, r => r.Supplier, desc),
         "price" => desc
-            ? src.OrderBy(r => r.Price == null).ThenByDescending(r => r.Price)
-            : src.OrderBy(r => r.Price == null).ThenBy(r => r.Price),
+            ? src.OrderBy(r => r.PriceCents == null).ThenByDescending(r => r.PriceCents)
+            : src.OrderBy(r => r.PriceCents == null).ThenBy(r => r.PriceCents),
         "responsetime" => By(src, r => r.ResponseTimeMs, desc),
         _ => By(src, r => r.TimestampUtc, desc),
     };

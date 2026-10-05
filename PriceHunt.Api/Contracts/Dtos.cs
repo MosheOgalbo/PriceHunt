@@ -21,6 +21,6 @@ public sealed record EndedPayload(Guid SearchId, string Status, int Responded, i
 
 public sealed record HistoryItem(
     long Id, Guid SearchId, DateTime TimestampUtc, string FromLocation, string ToLocation,
-    string Supplier, double? Price, int ResponseTimeMs, bool Succeeded, string? Error, string SearchStatus);
+    string Supplier, decimal? Price, int ResponseTimeMs, bool Succeeded, string? Error, string SearchStatus);
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
