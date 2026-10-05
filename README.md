@@ -2,7 +2,41 @@
 
 Live shipping-price search across seven simulated suppliers, with a persisted, filterable history.
 
-Stack: .NET 8, ASP.NET Core, Entity Framework Core, SQLite, Angular 17, Angular Material.
+The assignment asks for **.NET 8 or later** and **Angular 17 or later**. This repository uses those floors (see stack below).
+
+## Tools and technologies
+
+### Backend (`PriceHunt.Api`)
+
+| Area | Technology |
+| --- | --- |
+| Runtime / framework | .NET 8 (`net8.0`), ASP.NET Core minimal APIs |
+| Persistence | Entity Framework Core 8, SQLite, EF migrations (`Database.Migrate()` on startup) |
+| Streaming | Server-Sent Events (`text/event-stream`), `Channel<T>`, `CancellationTokenSource` |
+| Resilience | Per-supplier timeout, one retry, in-process circuit breaker |
+| Health | `GET /health` (SQLite reachable) |
+| Tests | xUnit, Microsoft.NET.Test.Sdk, coverlet, SQLite in-memory |
+
+### Frontend (`pricehunt-web`)
+
+| Area | Technology |
+| --- | --- |
+| Framework | Angular 17 (standalone components), TypeScript, Zone.js |
+| UI | Angular Material 17, Angular CDK, SCSS, Google Material Icons |
+| Reactive | RxJS |
+| Tooling | Angular CLI 17, Karma, Jasmine (unit tests) |
+| i18n / a11y | English, Hebrew, Russian, Arabic; RTL for Hebrew and Arabic; Noto Sans / Noto Sans Hebrew / Noto Sans Arabic |
+| UX extras | Day/night theme (`localStorage` + `prefers-color-scheme`), live tracking-map animation, UN/LOCODE place autocomplete |
+
+### Runtime / how you run it
+
+| Tool | Role |
+| --- | --- |
+| .NET SDK 8+ | `dotnet run`, `dotnet test` |
+| Node.js + npm | `npm install`, `npm start` for the Angular app |
+| Browser | Live Search UI (`EventSource`), History UI |
+
+No Docker, no paid cloud DB, and no real outbound supplier HTTP calls — suppliers are in-process simulations.
 
 ## Run
 
@@ -20,7 +54,7 @@ In a second terminal:
 cd pricehunt-web && npm install && npm start
 ```
 
-The UI is at http://localhost:4200. It opens in English. The language control in the toolbar opens a list (English, עברית, Русский, العربية) and remembers the choice. Hebrew and Arabic use right-to-left layout.
+The UI is at http://localhost:4200. It opens in English. The language control in the toolbar opens a list (English, עברית, Русский, العربية) and remembers the choice. Hebrew and Arabic use right-to-left layout. The sun/moon control switches day and night themes and remembers the choice.
 
 Location fields complete from a built-in list of real ports and cities (UN/LOCODE, place, and country). The value saved on a search is the English place name, so history stays the same in every language.
 
@@ -28,6 +62,7 @@ Tests:
 
 ```bash
 dotnet test PriceHunt.Api.Tests
+cd pricehunt-web && npx ng test --watch=false --browsers=ChromeHeadless
 ```
 
 ## Streaming approach: Server-Sent Events
@@ -106,7 +141,7 @@ On startup the API runs `Database.Migrate()`, so the schema is created or update
 
 Indexes: `Searches.StartedAtUtc`, `Responses.Supplier`, `Responses.TimestampUtc`.
 
-The history endpoint returns supplier responses, filtered by start date, end date (the end day is inclusive), one or more suppliers, and from/to location. The browser sends its timezone offset, so those calendar days are the user's local days rather than UTC midnights. Results can be sorted by date, route, supplier, price, or response time, and they are paged. A location filter treats `%` and `_` as literal characters.
+The history endpoint returns supplier responses, filtered by start date, end date (the end day is inclusive), one or more suppliers, and from/to location. The browser sends its timezone offset, so those calendar days are the user's local days rather than UTC midnights. Results can be sorted by date, route, supplier, price, or response time, and they are paged. A location filter treats `%` and `_` as literal characters. History filters are optional: empty means no constraint on that field.
 
 A supplier that is still silent when the 6 second limit is reached is stored as a response with no price and the error "No response before the search ended". The search status stays `TimedOut`. Sorting by price puts those rows after every priced quote, in both directions.
 
@@ -141,15 +176,21 @@ Every SSE event has an `id`. The Angular client sends a `streamId` with the sear
 - If a supplier already failed and the 6 second window closes during the retry, that failure is stored. It is not replaced with "No response".
 - The circuit breaker is one instance for the process, so a run of failures can skip that supplier on a later search. A timeout does not count toward opening it.
 - If the browser receives no SSE event for 10 seconds, the live search stops with a connection error instead of staying on "Searching…".
+- Live Search only allows today or future shipping dates; History can filter any past range.
 
 ## What I would do differently
 
 - Authentication, and a per-user history.
 - A durable outbox for SSE events, so a resume still works after the API process restarts. The current buffer is in memory.
 - Real supplier adapters behind the same `ISupplier` interface, with secrets outside the repo.
+- Upgrade path to newer LTS lines (.NET 10, Angular 22) while keeping the assignment floor of .NET 8 / Angular 17.
 
 ## AI usage
 
-- The assignment was read from the PriceHunt PDF.
-- The architecture (SSE, channel, single DB consumer, Angular Material screens, and the xUnit tests) was drafted in a Claude conversation and then implemented in this repository.
-- Cursor (Grok) wrote the projects, fixed the SSE handler so it does not try to write a result after the response has started, closed `EventSource` when the stream ends, wired dependency injection so the optional test timeout does not break startup, and verified the API, tests, and UI.
+AI tools are allowed by the assignment. Where they were used:
+
+- **Assignment PDF** — read to extract functional requirements (live search, history, streaming, persistence, README sections).
+- **Claude** — early architecture draft (SSE vs SignalR, channel + single DB consumer, Material screens, xUnit shape).
+- **Cursor** — implementation and iteration in this repository: scaffolding the API and Angular apps, SSE cancel/resume behavior, dependency injection for the test timeout, history/search UI (i18n, RTL, day/night theme, tracking map, calendar rules), tests, and README updates.
+
+Human review covers product decisions, acceptance of the assignment stack (.NET 8 / Angular 17), and final verification of run/test paths.
