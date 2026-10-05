@@ -120,7 +120,7 @@ export class SearchComponent implements OnInit, OnDestroy {
   readonly statusLabel = computed(() => {
     const state = this.state();
     if (state === 'idle') return '';
-    if (state === 'completed') return this.i18n.t('quotesIn');
+    if (state === 'completed') return this.i18n.t('completed');
     return this.i18n.t(state === 'error' ? 'connectionError' : state);
   });
 

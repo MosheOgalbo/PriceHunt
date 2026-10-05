@@ -4,6 +4,8 @@ Live shipping-price search across seven simulated suppliers, with a persisted, f
 
 The assignment asks for **.NET 8 or later** and **Angular 17 or later**. This repository uses those floors (see stack below).
 
+Solution file: classic `PriceHunt.sln` (works with .NET SDK 8+). Prefer `dotnet run --project PriceHunt.Api` / `dotnet test PriceHunt.Api.Tests` as documented below — those need only SDK 8+.
+
 ## Tools and technologies
 
 ### Backend (`PriceHunt.Api`)
@@ -13,7 +15,7 @@ The assignment asks for **.NET 8 or later** and **Angular 17 or later**. This re
 | Runtime / framework | .NET 8 (`net8.0`), ASP.NET Core minimal APIs |
 | Persistence | Entity Framework Core 8, SQLite, EF migrations (`Database.Migrate()` on startup) |
 | Streaming | Server-Sent Events (`text/event-stream`), `Channel<T>`, `CancellationTokenSource` |
-| Resilience | Per-supplier timeout, one retry, in-process circuit breaker |
+| Resilience | Per-supplier timeout, optional single retry (off by default), in-process circuit breaker |
 | Health | `GET /health` (SQLite reachable) |
 | Tests | xUnit, Microsoft.NET.Test.Sdk, coverlet, SQLite in-memory |
 
@@ -26,17 +28,19 @@ The assignment asks for **.NET 8 or later** and **Angular 17 or later**. This re
 | Reactive | RxJS |
 | Tooling | Angular CLI 17, Karma, Jasmine (unit tests) |
 | i18n / a11y | English, Hebrew, Russian, Arabic; RTL for Hebrew and Arabic; Noto Sans / Noto Sans Hebrew / Noto Sans Arabic |
-| UX extras | Day/night theme (`localStorage` + `prefers-color-scheme`), live tracking-map animation, UN/LOCODE place autocomplete |
+| UX extras | Day/night theme (`localStorage` + `prefers-color-scheme`), decorative tracking-map animation, UN/LOCODE place autocomplete |
 
 ### Runtime / how you run it
 
 | Tool | Role |
 | --- | --- |
-| .NET SDK 8+ | `dotnet run`, `dotnet test` |
+| .NET SDK 8+ | `dotnet run`, `dotnet test`, `dotnet build PriceHunt.sln` |
 | Node.js + npm | `npm install`, `npm start` for the Angular app |
 | Browser | Live Search UI (`EventSource`), History UI |
 
 No Docker, no paid cloud DB, and no real outbound supplier HTTP calls — suppliers are in-process simulations.
+
+**Decorative UI data:** waybill numbers, shipment IDs, supplier codes (`SC-…`), license plates, and the tracking-map truck animation are **simulated and decorative**. They are derived from the search/route seed for a realistic logistics look. They are not persisted, not returned by the API, and not part of pricing or history logic.
 
 ## Run
 
@@ -152,7 +156,8 @@ A supplier that is still silent when the 6 second limit is reached is stored as 
 Each selected supplier runs on its own task.
 
 - An attempt is limited to 5.5 seconds, inside the 6 second search. A normal quote (0.5–5 seconds) still fits.
-- A thrown failure is retried once when the search window is still open. The supplier itself still fails about 30% of the time per attempt.
+- **Default: `MaxAttempts = 1` (no retry).** FlexiShip still fails about 30% of the time on each call, so reviewers see that simulation clearly.
+- Optional retry: set `SupplierExecutionOptions.MaxAttempts = 2` (used in tests that cover recovery). With a second attempt, an observed ~30% per-call failure rate drops toward ~9% when both attempts fit in the window — which is why retry is off by default.
 - Four failures in a row open a circuit for 20 seconds. Later searches skip that supplier immediately and record why. A timeout does not count as a failure, so GlobalPort still waits out the search instead of being skipped.
 - Cancellation of the search, or of one attempt because the search ended, is not retried and does not open the circuit.
 
@@ -170,20 +175,21 @@ Every SSE event has an `id`. The Angular client sends a `streamId` with the sear
 - Migrations are applied automatically on startup, so a clone still runs with one command and the schema can change later.
 - The search timeout is injectable so tests do not wait 6 seconds. The running API keeps the 6 second default. The DI registration is a factory because the container would otherwise try to resolve that optional `TimeSpan`.
 - A dropped SSE connection waits one second before cancellation. That is long enough for `Last-Event-ID` to resume, and short enough that leaving the page still stops the work.
-- One retry lowers how often FlexiShip's 30% failure is visible, because a second attempt can succeed. The failure rate on each attempt is unchanged.
+- Retry is off by default so FlexiShip's ~30% failure rate stays visible; enabling `MaxAttempts = 2` is an explicit opt-in (see Supplier calls).
 - Tests use xUnit and SQLite in-memory, with one open connection so every context sees the same database. The Angular tests cover the rule that a late event from search N cannot enter search N+1.
 - A search stays `Running` only if the process is killed mid-flight. Disconnects and timeouts update the status before the request ends.
-- If a supplier already failed and the 6 second window closes during the retry, that failure is stored. It is not replaced with "No response".
+- If a supplier already failed and the 6 second window closes during an optional retry, that failure is stored. It is not replaced with "No response".
 - The circuit breaker is one instance for the process, so a run of failures can skip that supplier on a later search. A timeout does not count toward opening it.
 - If the browser receives no SSE event for 10 seconds, the live search stops with a connection error instead of staying on "Searching…".
 - Live Search only allows today or future shipping dates; History can filter any past range.
+- History date filters use the browser's current `getTimezoneOffset()`. Around DST transitions, day boundaries can be off by one hour for the selected calendar day (edge case only).
+- If `EventSource` reconnects before the first SSE event, the server may start a new search and leave a `Cancelled` row for the previous attempt (edge case when the connection drops very early).
 
 ## What I would do differently
 
 - Authentication, and a per-user history.
 - A durable outbox for SSE events, so a resume still works after the API process restarts. The current buffer is in memory.
 - Real supplier adapters behind the same `ISupplier` interface, with secrets outside the repo.
-- Upgrade path to newer LTS lines (.NET 10, Angular 22) while keeping the assignment floor of .NET 8 / Angular 17.
 
 ## AI usage
 

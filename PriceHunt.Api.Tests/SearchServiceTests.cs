@@ -13,8 +13,11 @@ public sealed class SearchServiceTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private SearchService Create(ISupplier[] suppliers, int maxMs = 3000) =>
-        new(_db, suppliers, TimeSpan.FromMilliseconds(maxMs));
+    private SearchService Create(
+        ISupplier[] suppliers,
+        int maxMs = 3000,
+        SupplierExecutionOptions? execution = null) =>
+        new(_db, suppliers, TimeSpan.FromMilliseconds(maxMs), execution: execution);
 
     private static async Task<List<StreamEvent>> Run(SearchService svc, ISupplier[] suppliers, CancellationToken ct = default)
     {
@@ -125,12 +128,27 @@ public sealed class SearchServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Failed_supplier_is_retried_once_and_can_recover()
+    public async Task Default_execution_does_not_retry_failed_suppliers()
     {
         var flaky = new FakeSupplier("Flaky", 20, 40m, failTimes: 1);
         ISupplier[] suppliers = [flaky];
 
         var events = await Run(Create(suppliers), suppliers);
+
+        var result = Assert.IsType<ResultPayload>(Assert.Single(events, e => e.Type == "result").Data);
+        Assert.False(result.Succeeded);
+        Assert.Equal("boom", result.Error);
+        Assert.Equal(1, flaky.Calls);
+    }
+
+    [Fact]
+    public async Task Failed_supplier_is_retried_once_and_can_recover_when_retry_enabled()
+    {
+        var flaky = new FakeSupplier("Flaky", 20, 40m, failTimes: 1);
+        ISupplier[] suppliers = [flaky];
+        var options = new SupplierExecutionOptions { MaxAttempts = 2 };
+
+        var events = await Run(Create(suppliers, execution: options), suppliers);
 
         var result = Assert.IsType<ResultPayload>(Assert.Single(events, e => e.Type == "result").Data);
         Assert.True(result.Succeeded);
@@ -142,7 +160,8 @@ public sealed class SearchServiceTests : IDisposable
     public async Task Cancellation_during_retry_keeps_the_real_supplier_error()
     {
         var flaky = new FailThenHang();
-        var events = await Run(Create([flaky], maxMs: 400), [flaky]);
+        var options = new SupplierExecutionOptions { MaxAttempts = 2 };
+        var events = await Run(Create([flaky], maxMs: 400, execution: options), [flaky]);
 
         var result = Assert.IsType<ResultPayload>(Assert.Single(events, e => e.Type == "result").Data);
         Assert.Equal("failed", result.Outcome);
