@@ -19,18 +19,21 @@ import { routeLayout, trackingIds } from '../../core/tracking';
         </div>
         <div class="meta">
           <span><em>{{ i18n.t('shipmentId') }}</em><b class="ltr">{{ ids.shipmentId }}</b></span>
+          @if (supplier) {
+            <span><em>{{ i18n.t('supplierId') }}</em><b class="ltr">{{ ids.supplierId }}</b></span>
+          }
           <span><em>{{ i18n.t('licensePlate') }}</em><b class="ltr">{{ ids.plate }}</b></span>
         </div>
       </header>
       <div class="map" role="img" [attr.aria-label]="i18n.t('liveMap')">
         <svg [attr.viewBox]="'0 0 ' + layout.width + ' ' + layout.height" aria-hidden="true">
-          <rect width="100%" height="100%" fill="#d5e4ec" />
-          <g class="grid" stroke="#c5d5de">
+          <rect width="100%" height="100%" fill="var(--ph-map-land)" />
+          <g class="grid" stroke="var(--ph-map-grid)">
             <path d="M0 70 H640 M0 140 H640 M0 210 H640 M160 0 V280 M320 0 V280 M480 0 V280" />
           </g>
-          <ellipse cx="120" cy="200" rx="150" ry="70" fill="#e7f0e4" />
-          <ellipse cx="470" cy="90" rx="180" ry="78" fill="#e4efe2" />
-          <ellipse cx="300" cy="230" rx="90" ry="36" fill="#edf3ea" />
+          <ellipse cx="120" cy="200" rx="150" ry="70" fill="var(--ph-map-park)" />
+          <ellipse cx="470" cy="90" rx="180" ry="78" fill="var(--ph-map-park)" />
+          <ellipse cx="300" cy="230" rx="90" ry="36" fill="var(--ph-map-park-soft)" />
           <path class="casing" [attr.d]="layout.road" />
           <path class="route" [attr.d]="layout.road" />
           <g [attr.transform]="'translate(' + layout.from.x + ' ' + layout.from.y + ')'">
@@ -52,8 +55,8 @@ import { routeLayout, trackingIds } from '../../core/tracking';
           <mat-icon>local_shipping</mat-icon>
         </span>
       </div>
-      <p class="note" [class.done]="!caption && shown >= 0.98">
-        <mat-icon>{{ caption ? 'alt_route' : (shown < 0.98 ? 'local_shipping' : 'where_to_vote') }}</mat-icon>
+      <p class="note" [class.done]="shown >= 0.98" [class.halted]="caption && shown > 0 && shown < 0.98">
+        <mat-icon>{{ caption ? (shown >= 0.98 ? 'where_to_vote' : shown > 0 ? 'schedule' : 'alt_route') : (shown < 0.98 ? 'local_shipping' : 'where_to_vote') }}</mat-icon>
         {{ caption || (shown < 0.98 ? i18n.t('onTheWay') : i18n.t('arrived')) }}
       </p>
     </section>
@@ -62,42 +65,44 @@ import { routeLayout, trackingIds } from '../../core/tracking';
     :host { display: block; }
     .track {
       display: grid; gap: 12px; padding: 14px;
-      border: 1px solid #e4e8f2; border-radius: 16px; background: #f8f9fc;
+      border: 1px solid var(--ph-line, #d3dde5); border-radius: 16px;
+      background: linear-gradient(180deg, var(--ph-map-panel-top) 0%, var(--ph-map-panel-bottom) 100%);
     }
     header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
-    .kicker { margin: 0; color: #6b7590; font-size: 12px; font-weight: 700; }
+    .kicker { margin: 0; color: var(--ph-muted, #5a6b78); font-size: 12px; font-weight: 700; }
     .waybill {
-      margin: 2px 0 0; font-size: 22px; font-weight: 800; letter-spacing: 0.04em; color: #1c2434;
+      margin: 2px 0 0; font-size: 22px; font-weight: 800; letter-spacing: 0.04em; color: var(--ph-heading, #0a3550);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .ltr { direction: ltr; unicode-bidi: isolate; }
     .meta { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
     .meta span { display: flex; gap: 8px; align-items: baseline; }
-    .meta em { color: #6b7590; font-style: normal; font-weight: 600; }
-    .meta b { font-weight: 800; }
+    .meta em { color: var(--ph-muted, #5a6b78); font-style: normal; font-weight: 600; }
+    .meta b { font-weight: 800; color: var(--ph-heading, #0a3550); }
     .map {
       position: relative; direction: ltr; border-radius: 12px; overflow: hidden;
-      box-shadow: inset 0 0 0 1px #c5d5de;
+      box-shadow: inset 0 0 0 1px var(--ph-map-frame);
     }
     svg { display: block; width: 100%; height: auto; }
     .grid { fill: none; stroke-width: 1; }
-    .casing { fill: none; stroke: #fff; stroke-width: 12; stroke-linecap: round; }
-    .route { fill: none; stroke: #3949ab; stroke-width: 4; stroke-linecap: round; }
-    .city { font-size: 13px; font-weight: 700; fill: #1c2434; text-anchor: middle; }
+    .casing { fill: none; stroke: var(--ph-map-casing); stroke-width: 12; stroke-linecap: round; }
+    .route { fill: none; stroke: var(--ph-sea, #0c7c8c); stroke-width: 4; stroke-linecap: round; }
+    .city { font-size: 13px; font-weight: 700; fill: var(--ph-heading, #0a3550); text-anchor: middle; }
     .truck {
       position: absolute; width: 36px; height: 36px; border-radius: 10px;
-      display: grid; place-items: center; background: #3949ab; color: #fff;
-      box-shadow: 0 8px 16px rgba(28, 36, 52, 0.28);
+      display: grid; place-items: center; background: var(--ph-logo-fg, #0a3550); color: #fff;
+      box-shadow: 0 8px 16px rgba(6, 37, 54, 0.28);
       transition: left 0.8s linear, top 0.8s linear, transform 0.8s linear;
     }
     .truck mat-icon { color: #fff; font-size: 20px; width: 20px; height: 20px; }
     .truck.driving { animation: bob 0.7s ease-in-out infinite; }
     .note {
       margin: 0; display: flex; align-items: center; gap: 8px;
-      color: #3949ab; font-weight: 700;
+      color: var(--ph-sea, #0c7c8c); font-weight: 700;
     }
     .note mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .note.done { color: #146c36; }
+    .note.done { color: var(--ph-ok, #146c36); }
+    .note.halted { color: var(--ph-warn, #8a5a00); }
     @keyframes bob {
       0%, 100% { margin-top: 0; }
       50% { margin-top: -3px; }
@@ -111,6 +116,8 @@ export class TrackingMapComponent implements OnChanges, OnDestroy {
   @Input() from = '';
   @Input() to = '';
   @Input() seed = '';
+  /** Carrier name — adds a per-supplier id and their truck plate. */
+  @Input() supplier = '';
   /** 0 at the origin, 1 at the destination. */
   @Input() progress = 0;
   /** Keep gliding while the shipment is still on the road. */
@@ -124,7 +131,7 @@ export class TrackingMapComponent implements OnChanges, OnDestroy {
   private timer?: number;
 
   get ids() {
-    return trackingIds(this.seed || `${this.from}|${this.to}`);
+    return trackingIds(this.seed || `${this.from}|${this.to}`, this.supplier);
   }
 
   get fromLabel(): string {

@@ -1,21 +1,149 @@
 @use '@angular/material' as mat;
 @include mat.core();
 
-$primary: mat.define-palette(mat.$indigo-palette, 600);
-$accent: mat.define-palette(mat.$indigo-palette, 500);
+/* Logistics palette: deep navy + sea teal (Maersk / Flexport style), not purple SaaS. */
+$primary: mat.define-palette(mat.$cyan-palette, 800);
+$accent: mat.define-palette(mat.$blue-gray-palette, 700);
 $theme: mat.define-light-theme((
   color: (primary: $primary, accent: $accent),
   typography: mat.define-typography-config(),
   density: 0,
 ));
+$dark-theme: mat.define-dark-theme((
+  color: (primary: $primary, accent: $accent),
+));
 @include mat.all-component-themes($theme);
+
+:root,
+html[data-theme='light'] {
+  color-scheme: light;
+  --ph-navy: #0a3550;
+  --ph-navy-deep: #062536;
+  --ph-sea: #0c7c8c;
+  --ph-sea-soft: #e4f3f5;
+  --ph-sea-mid: #b7dce2;
+  --ph-ink: #12202b;
+  --ph-muted: #5a6b78;
+  --ph-line: #d3dde5;
+  --ph-line-soft: #e8eef2;
+  --ph-bg: #e8eef2;
+  --ph-bg-glow-a: rgba(12, 124, 140, 0.12);
+  --ph-bg-glow-b: rgba(10, 53, 80, 0.1);
+  --ph-bg-top: #dfe8ee;
+  --ph-bg-bottom: #e4eaef;
+  --ph-surface: #ffffff;
+  --ph-heading: #0a3550;
+  --ph-ok: #146c36;
+  --ph-ok-soft: #e6f4ea;
+  --ph-warn: #8a5a00;
+  --ph-warn-soft: #fff1d6;
+  --ph-danger: #b3261e;
+  --ph-danger-soft: #fdecea;
+  --ph-table-head: #f3f7f8;
+  --ph-toolbar-from: #0a3550;
+  --ph-toolbar-to: #0c4060;
+  --ph-toolbar-text: #ffffff;
+  --ph-toolbar-muted: #d5eef2;
+  --ph-toolbar-nav: #d7e8ec;
+  --ph-logo-bg: #ffffff;
+  --ph-logo-fg: #0a3550;
+  --ph-shadow: rgba(10, 53, 80, 0.06);
+  --ph-map-land: #d5e4ec;
+  --ph-map-grid: #c5d5de;
+  --ph-map-park: #e7f0e4;
+  --ph-map-park-soft: #edf3ea;
+  --ph-map-casing: #ffffff;
+  --ph-map-frame: #b9cdd4;
+  --ph-map-panel-top: #f4f8f9;
+  --ph-map-panel-bottom: #eef4f6;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  @include mat.all-component-colors($dark-theme);
+
+  --ph-navy: #7ec8d2;
+  --ph-navy-deep: #020b12;
+  --ph-sea: #2eb8c8;
+  --ph-sea-soft: #0d3a42;
+  --ph-sea-mid: #1a5a66;
+  --ph-ink: #e8eef2;
+  --ph-muted: #9aadb8;
+  --ph-line: #2a3d4a;
+  --ph-line-soft: #1e2e3a;
+  --ph-bg: #0b1620;
+  --ph-bg-glow-a: rgba(46, 184, 200, 0.1);
+  --ph-bg-glow-b: rgba(126, 200, 210, 0.06);
+  --ph-bg-top: #081018;
+  --ph-bg-bottom: #0b1620;
+  --ph-surface: #132230;
+  --ph-heading: #e8f4f7;
+  --ph-ok: #5dce84;
+  --ph-ok-soft: #143222;
+  --ph-warn: #f0c060;
+  --ph-warn-soft: #3a2e12;
+  --ph-danger: #f28b82;
+  --ph-danger-soft: #3a1512;
+  --ph-table-head: #0f1c28;
+  --ph-toolbar-from: #061820;
+  --ph-toolbar-to: #0a2433;
+  --ph-toolbar-text: #ffffff;
+  --ph-toolbar-muted: #b7dce2;
+  --ph-toolbar-nav: #d7e8ec;
+  --ph-logo-bg: #ffffff;
+  --ph-logo-fg: #0a3550;
+  --ph-shadow: rgba(0, 0, 0, 0.35);
+  --ph-map-land: #0c1c28;
+  --ph-map-grid: #163040;
+  --ph-map-park: #0e2a32;
+  --ph-map-park-soft: #0c242c;
+  --ph-map-casing: #1e3544;
+  --ph-map-frame: #2a4a5a;
+  --ph-map-panel-top: #101e2a;
+  --ph-map-panel-bottom: #0c1822;
+
+  .mat-mdc-card {
+    --mdc-elevated-card-container-color: var(--ph-surface);
+    --mdc-outlined-card-container-color: var(--ph-surface);
+    --mdc-outlined-card-outline-color: var(--ph-line);
+  }
+  .mat-mdc-form-field {
+    --mdc-outlined-text-field-label-text-color: var(--ph-muted);
+    --mdc-outlined-text-field-input-text-color: var(--ph-ink);
+    --mdc-outlined-text-field-outline-color: var(--ph-line);
+    --mdc-outlined-text-field-hover-outline-color: var(--ph-sea);
+    --mdc-outlined-text-field-focus-outline-color: var(--ph-sea);
+  }
+  .mat-mdc-table {
+    background: var(--ph-surface);
+    --mat-table-background-color: var(--ph-surface);
+    --mat-table-row-item-label-text-color: var(--ph-ink);
+    --mat-table-header-headline-color: var(--ph-heading);
+  }
+  .mat-mdc-paginator {
+    background: var(--ph-surface);
+    color: var(--ph-ink);
+  }
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    background: var(--ph-surface);
+    color: var(--ph-ink);
+  }
+  .mat-mdc-menu-panel {
+    background: var(--ph-surface);
+  }
+}
 
 html, body { height: 100%; }
 body {
   margin: 0;
-  color: #1c2434;
+  color: var(--ph-ink);
   font-family: 'Noto Sans', 'Noto Sans Hebrew', 'Noto Sans Arabic', sans-serif;
-  background: #eef1f6;
+  background:
+    radial-gradient(1200px 420px at 12% -10%, var(--ph-bg-glow-a), transparent 55%),
+    radial-gradient(900px 380px at 88% 0%, var(--ph-bg-glow-b), transparent 50%),
+    linear-gradient(180deg, var(--ph-bg-top) 0%, var(--ph-bg) 42%, var(--ph-bg-bottom) 100%);
+  background-attachment: fixed;
+  transition: background-color 0.25s ease, color 0.2s ease;
 }
 
 .lane {
@@ -24,7 +152,7 @@ body {
   align-items: start;
 }
 .lane-mark {
-  display: grid; place-items: center; height: 56px; margin-top: 22px; color: #3949ab;
+  display: grid; place-items: center; height: 56px; margin-top: 22px; color: var(--ph-sea);
 }
 .lane-mark .mat-icon { font-size: 20px; width: 20px; height: 20px; }
 @media (max-width: 640px) {
@@ -35,12 +163,12 @@ body {
 
 .page-head {
   margin: 0 0 18px;
-  h1 { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
-  p { margin: 0; max-width: 62ch; color: #5c677d; line-height: 1.55; }
+  h1 { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--ph-heading); }
+  p { margin: 0; max-width: 62ch; color: var(--ph-muted); line-height: 1.55; }
 }
 .eyebrow {
   margin: 0 0 6px;
-  color: #3949ab;
+  color: var(--ph-sea);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -54,7 +182,7 @@ html[dir='rtl'] .arrow { display: inline-block; transform: scaleX(-1); }
 
 .mat-mdc-form-field-icon-prefix .mat-icon,
 .mat-datepicker-toggle .mat-icon {
-  color: #5c6b86;
+  color: var(--ph-muted);
 }
 
 .date-range .mat-date-range-input-container {
@@ -65,26 +193,40 @@ html[dir='rtl'] .arrow { display: inline-block; transform: scaleX(-1); }
 }
 .date-range .mat-date-range-input-wrapper {
   flex: 0 0 auto;
-  width: auto;
+  width: max-content;
   max-width: none;
   min-width: 0;
 }
+/* The visible text sits in an absolutely positioned input. Its box is the hidden
+   mirror, which updates as soon as a day is chosen. field-sizing waited for a click. */
 .date-range .mat-date-range-input-inner {
-  field-sizing: content;
-  width: auto;
-  min-width: 0;
-  padding: 0;
+  width: 100%;
+  field-sizing: fixed;
+}
+.date-range .mat-date-range-input-mirror {
+  font-weight: 600;
 }
 .date-range .mat-date-range-input-separator {
   flex: none;
   margin-inline: 4px;
-  color: #8b95ab;
+  color: var(--ph-muted);
 }
-.date-range input[matStartDate] { color: #137333; font-weight: 650; }
-.date-range input[matEndDate] { color: #b3261e; font-weight: 650; }
+.date-range input[matStartDate] { color: var(--ph-ok); font-weight: 600; }
+.date-range input[matEndDate] { color: var(--ph-danger); font-weight: 600; }
 .date-range input::placeholder { opacity: 1; }
 
-.cal-range .mat-calendar-body-in-range::before { background: #e7ebf5; }
+.ph-cal-clear {
+  display: flex;
+  padding: 0 8px 4px;
+  border-top: 1px solid var(--ph-line);
+}
+.ph-cal-clear .mdc-button {
+  width: 100%;
+  color: var(--ph-sea);
+  font-weight: 600;
+}
+
+.cal-range .mat-calendar-body-in-range::before { background: var(--ph-sea-soft); }
 .cal-range .mat-calendar-body-selected {
   background-color: #1e8e3e !important;
   color: #fff !important;
@@ -104,20 +246,55 @@ html[dir='rtl'] .arrow { display: inline-block; transform: scaleX(-1); }
 html[dir='rtl'] .cal-range .mat-calendar-body-range-start.mat-calendar-body-range-end > .mat-calendar-body-selected {
   background: linear-gradient(270deg, #1e8e3e 50%, #d93025 50%) !important;
 }
-.cal-range .mat-calendar-body-disabled { cursor: not-allowed; }
+.cal-range .mat-calendar-body-disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+html[data-theme='dark'] .mat-datepicker-content {
+  background: var(--ph-surface);
+  color: var(--ph-ink);
+}
+html[data-theme='dark'] .cal-range .mat-calendar-body-disabled {
+  opacity: 0.28;
+}
 
 .lang-menu.mat-mdc-menu-panel { min-width: 196px; }
 .lang-menu .hidden-check { visibility: hidden; }
 
+.supplier-table-panel.mat-mdc-select-panel,
 .supplier-panel.mat-mdc-select-panel {
   padding-top: 0;
+}
+.supplier-table-panel .supplier-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--ph-table-head);
+  border-bottom: 1px solid var(--ph-line);
+  min-height: 48px;
+  padding-inline: 16px 4px;
+  color: var(--ph-heading);
+  font-size: 13px;
+  font-weight: 700;
+}
+.supplier-table-panel .supplier-head .grow { flex: 1; text-align: start; }
+.supplier-table-panel .supplier-head .mdc-button { font-weight: 700; }
+.supplier-table-panel .mat-mdc-option {
+  min-height: 44px;
+  border-bottom: 1px solid var(--ph-line-soft);
+}
+.supplier-table-panel .mat-mdc-option.mdc-list-item--selected {
+  background: var(--ph-sea-soft);
 }
 .supplier-panel .clear-selection {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #fff;
-  border-bottom: 1px solid #e4e8f2;
+  background: var(--ph-surface);
+  border-bottom: 1px solid var(--ph-line);
   padding: 4px;
 }
 .supplier-panel .clear-selection .mdc-button {
@@ -162,16 +339,16 @@ html[dir='rtl'] .cal-range .mat-calendar-body-range-start.mat-calendar-body-rang
     position: sticky;
     top: 0;
     z-index: 1;
-    background: #fff;
+    background: var(--ph-surface);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0;
     text-transform: none;
-    color: #6b7590;
-    border-bottom: 1px solid #e4e8f2;
+    color: var(--ph-muted);
+    border-bottom: 1px solid var(--ph-line);
   }
-  .city { font-weight: 650; color: #1c2434; }
-  .country { color: #5c677d; font-size: 13px; }
+  .city { font-weight: 650; color: var(--ph-ink); }
+  .country { color: var(--ph-muted); font-size: 13px; }
   .locode {
     direction: ltr;
     unicode-bidi: isolate;
@@ -180,6 +357,20 @@ html[dir='rtl'] .cal-range .mat-calendar-body-range-start.mat-calendar-body-rang
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.04em;
-    color: #3949ab;
+    color: var(--ph-sea);
   }
+}
+
+/* Comfortable touch targets on interactive chrome */
+.mat-mdc-button,
+.mat-mdc-outlined-button,
+.mat-mdc-unelevated-button,
+.mat-mdc-raised-button {
+  min-height: 44px;
+}
+.mat-mdc-icon-button {
+  --mdc-icon-button-state-layer-size: 44px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
 }

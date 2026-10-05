@@ -41,6 +41,8 @@ export interface TrackingIds {
   waybill: string;
   shipmentId: string;
   plate: string;
+  /** Stable carrier / supplier account code for this quote. */
+  supplierId: string;
 }
 
 export interface MapPoint {
@@ -69,20 +71,34 @@ function hash(seed: string): number {
   return n >>> 0;
 }
 
+function pad(value: number, size: number): string {
+  return String(value).padStart(size, '0');
+}
+
 function pointOf(name: string, fallback: LatLng): LatLng {
   const locode = findPlace(name)?.locode;
   return (locode && COORDS[locode]) || fallback;
 }
 
-/** Waybill, carrier shipment id, and truck plate. Stable for the same shipment. */
-export function trackingIds(seed: string): TrackingIds {
-  const n = hash(seed || 'pricehunt');
-  const pad = (value: number, size: number) => String(value).padStart(size, '0');
+/**
+ * Package ids come from the shipment seed (shared across quotes).
+ * Supplier id and plate come from the carrier name (unique per supplier).
+ */
+export function trackingIds(seed: string, supplier = ''): TrackingIds {
+  const shipment = hash(seed || 'pricehunt');
+  const carrier = hash(supplier || seed || 'pricehunt');
   return {
-    waybill: `WB${pad((n % 90000000) + 10000000, 8)}`,
-    shipmentId: `SHP-${pad((n >>> 8) % 900000 + 100000, 6)}`,
-    plate: `${pad((n % 90) + 10, 2)}-${pad(((n >>> 4) % 900) + 100, 3)}-${pad(((n >>> 12) % 90) + 10, 2)}`,
+    waybill: `WB${pad((shipment % 90000000) + 10000000, 8)}`,
+    shipmentId: `SHP-${pad((shipment >>> 8) % 900000 + 100000, 6)}`,
+    supplierId: supplierCode(supplier || seed),
+    plate: `${pad((carrier % 90) + 10, 2)}-${pad(((carrier >>> 4) % 900) + 100, 3)}-${pad(((carrier >>> 12) % 90) + 10, 2)}`,
   };
+}
+
+/** Stable supplier / carrier code, same name → same id in every language. */
+export function supplierCode(name: string): string {
+  const n = hash(name || 'supplier');
+  return `SC-${pad((n % 900000) + 100000, 6)}`;
 }
 
 function bezier(a: MapPoint, c: MapPoint, b: MapPoint, t: number): MapPoint {

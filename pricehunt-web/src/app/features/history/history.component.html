@@ -7,16 +7,16 @@
 <mat-card class="panel" appearance="outlined">
   <form [formGroup]="filters" (ngSubmit)="apply()" class="filters">
     <div class="lane">
-      <app-place-field formControlName="fromLocation" [label]="i18n.t('fromLocation')" [placeholder]="i18n.t('placeHint')" icon="trip_origin" [required]="true" [showErrors]="submitted()" />
+      <app-place-field formControlName="fromLocation" [label]="i18n.t('fromLocation')" [placeholder]="i18n.t('placeHint')" icon="trip_origin" [required]="false" [showErrors]="submitted()" />
       <span class="lane-mark" aria-hidden="true"><mat-icon class="arrow">arrow_forward</mat-icon></span>
-      <app-place-field formControlName="toLocation" [label]="i18n.t('toLocation')" [placeholder]="i18n.t('placeHint')" icon="place" [required]="true" [showErrors]="submitted()" />
+      <app-place-field formControlName="toLocation" [label]="i18n.t('toLocation')" [placeholder]="i18n.t('placeHint')" icon="place" [required]="false" [showErrors]="submitted()" />
     </div>
 
     <mat-form-field appearance="outline" class="date-range" floatLabel="always" subscriptSizing="dynamic">
       <mat-label>{{ i18n.t('dateRange') }}</mat-label>
       <mat-date-range-input [rangePicker]="picker" [dateFilter]="blockBeforeStart()" separator="–">
-        <input matStartDate formControlName="fromDate" [placeholder]="i18n.t('fromDate')" (click)="picker.open()" readonly />
-        <input matEndDate formControlName="toDate" [placeholder]="i18n.t('toDate')" (click)="picker.open()" readonly />
+        <input matStartDate formControlName="fromDate" [placeholder]="i18n.t('fromDate')" (click)="picker.open()" (dateChange)="paintDates()" readonly />
+        <input matEndDate formControlName="toDate" [placeholder]="i18n.t('toDate')" (click)="picker.open()" (dateChange)="paintDates()" readonly />
       </mat-date-range-input>
       @if (filters.controls.fromDate.value || filters.controls.toDate.value) {
         <button mat-icon-button matIconSuffix type="button" (click)="clearDates(); picker.close()" [attr.aria-label]="i18n.t('clearDate')">
@@ -24,7 +24,7 @@
         </button>
       }
       <mat-datepicker-toggle matIconSuffix [for]="picker" [aria-label]="i18n.t('openCalendar')" />
-      <mat-date-range-picker #picker panelClass="cal-range" />
+      <mat-date-range-picker #picker panelClass="cal-range" [calendarHeaderComponent]="calendarHeader" />
       <mat-error>
         @if (filters.controls.toDate.hasError('endBeforeStart')) {
           {{ i18n.t('endBeforeStart') }}
@@ -36,9 +36,18 @@
 
     <mat-form-field appearance="outline" class="suppliers-field" floatLabel="always" subscriptSizing="dynamic">
       <mat-label>{{ i18n.t('suppliers') }}</mat-label>
-      <mat-select formControlName="suppliers" multiple panelClass="supplier-panel">
+      <mat-icon matIconPrefix>groups</mat-icon>
+      <mat-select formControlName="suppliers" multiple [placeholder]="i18n.t('all')" panelClass="supplier-table-panel">
         <mat-select-trigger>{{ supplierLabel() }}</mat-select-trigger>
-        <div class="clear-selection">
+        <div class="supplier-head" (click)="$event.stopPropagation()">
+          <mat-checkbox
+            [checked]="allSelected()"
+            [indeterminate]="someSelected()"
+            (click)="$event.stopPropagation()"
+            (change)="setAll($event.checked)"
+            [aria-label]="i18n.t('all')"
+          />
+          <span class="grow">{{ i18n.t('all') }}</span>
           <button mat-button type="button" (click)="clearSuppliers($event)">
             <mat-icon>close</mat-icon>
             {{ i18n.t('clearSelection') }}
@@ -48,12 +57,6 @@
           <mat-option [value]="s">{{ s }}</mat-option>
         }
       </mat-select>
-      @if (filters.controls.suppliers.value.length) {
-        <button mat-icon-button matIconSuffix type="button" (click)="clearSuppliers($event)" [attr.aria-label]="i18n.t('clearSelection')">
-          <mat-icon>close</mat-icon>
-        </button>
-      }
-      <mat-error>{{ i18n.t('selectSupplier') }}</mat-error>
     </mat-form-field>
 
     <div class="actions">
@@ -78,7 +81,7 @@
         <td mat-cell *matCellDef="let r">
           <span class="when">
             <span>{{ r.timestampUtc | date: 'dd/MM/yyyy' : undefined : i18n.locale() }}</span>
-            <small class="ltr">{{ r.timestampUtc | date: 'HH:mm:ss' : undefined : i18n.locale() }}</small>
+            <small class="ltr">{{ r.timestampUtc | date: 'HH:mm' : undefined : i18n.locale() }}</small>
           </span>
         </td>
       </ng-container>
@@ -122,6 +125,40 @@
         </td>
       </tr>
     </table>
+  </div>
+
+  <div class="card-list" role="list">
+    @for (r of rows(); track r.id) {
+      <button type="button" class="hist-card" role="listitem" (click)="openSupplier(r)">
+        <div class="hist-card-top">
+          <span class="when">
+            <span>{{ r.timestampUtc | date: 'dd/MM/yyyy' : undefined : i18n.locale() }}</span>
+            <small class="ltr">{{ r.timestampUtc | date: 'HH:mm' : undefined : i18n.locale() }}</small>
+          </span>
+          @if (r.succeeded) {
+            <strong class="money">{{ r.price | currency: 'USD' : 'symbol' : '1.2-2' : i18n.locale() }}</strong>
+          } @else if (isNoResponse(r)) {
+            <span class="silent">{{ i18n.t('noResponse') }}</span>
+          } @else {
+            <span class="failed">{{ i18n.t('failed') }}</span>
+          }
+        </div>
+        <div class="hist-card-route">
+          <span>{{ routePlace(r.fromLocation) }}</span>
+          <span class="arrow">→</span>
+          <span>{{ routePlace(r.toLocation) }}</span>
+        </div>
+        <div class="hist-card-meta">
+          <span class="supplier">{{ r.supplier }}</span>
+          <span class="latency">{{ r.responseTimeMs / 1000 | number: '1.1-1' : i18n.locale() }} {{ i18n.t('secondsShort') }}</span>
+        </div>
+      </button>
+    } @empty {
+      <div class="empty cards-empty">
+        <mat-icon>inbox</mat-icon>
+        <span>{{ i18n.t('emptyHistory') }}</span>
+      </div>
+    }
   </div>
 
   <mat-paginator

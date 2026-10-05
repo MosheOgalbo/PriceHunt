@@ -45,7 +45,7 @@ public sealed class HistoryService(IDbContextFactory<PriceHuntDbContext> dbFacto
             .ThenBy(r => r.Id)
             .Skip((page - 1) * size).Take(size)
             .Select(r => new HistoryItem(
-                r.Id, r.TimestampUtc, r.Search.FromLocation, r.Search.ToLocation, r.Supplier,
+                r.Id, r.SearchId, r.TimestampUtc, r.Search.FromLocation, r.Search.ToLocation, r.Supplier,
                 r.Price, r.ResponseTimeMs, r.Succeeded, r.Error, r.Search.Status.ToString()))
             .ToListAsync(ct);
 

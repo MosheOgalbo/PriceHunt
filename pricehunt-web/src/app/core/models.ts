@@ -40,6 +40,7 @@ export type StreamEvent =
 
 export interface HistoryItem {
   id: number;
+  searchId: string;
   timestampUtc: string;
   fromLocation: string;
   toLocation: string;

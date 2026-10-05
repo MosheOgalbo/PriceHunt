@@ -1,11 +1,12 @@
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatCardModule } from '@angular/material/card';
-import { MAT_DATE_RANGE_SELECTION_STRATEGY, MatDatepickerIntl, MatDatepickerModule } from '@angular/material/datepicker';
+import { MAT_DATE_RANGE_SELECTION_STRATEGY, MatDateRangePicker, MatDatepickerIntl, MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -23,6 +24,7 @@ import { PriceHuntPaginatorIntl } from '../../core/i18n/paginator-intl';
 import { HistoryFilter, HistoryItem } from '../../core/models';
 import { canonicalPlace, differentPlaceValidator, knownPlaceValidator, placeLabel } from '../../core/places';
 import { LockedStartRangeStrategy } from '../../core/locked-start-range';
+import { CalendarClear, PriceHuntCalendarHeader, paintDateMirrors } from '../../shared/calendar-header/calendar-header.component';
 import { PlaceFieldComponent } from '../../shared/place-field/place-field.component';
 import { SupplierDetailDialog } from '../../shared/supplier-detail/supplier-detail.dialog';
 import { endNotBeforeStart, startOfDay, toIsoDate } from '../../core/utils';
@@ -34,10 +36,11 @@ import { endNotBeforeStart, startOfDay, toIsoDate } from '../../core/utils';
   imports: [
     ReactiveFormsModule, DatePipe, DecimalPipe, CurrencyPipe,
     MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatDatepickerModule,
-    MatTableModule, MatSortModule, MatPaginatorModule, MatButtonModule, MatIconModule,
+    MatTableModule, MatSortModule, MatPaginatorModule, MatButtonModule, MatCheckboxModule, MatIconModule,
     MatProgressBarModule, MatTooltipModule, MatDialogModule, PlaceFieldComponent,
   ],
   providers: [
+    CalendarClear,
     { provide: MatPaginatorIntl, useClass: PriceHuntPaginatorIntl },
     { provide: MatDatepickerIntl, useClass: PriceHuntDatepickerIntl },
     { provide: MAT_DATE_RANGE_SELECTION_STRATEGY, useClass: LockedStartRangeStrategy },
@@ -47,6 +50,10 @@ import { endNotBeforeStart, startOfDay, toIsoDate } from '../../core/utils';
 })
 export class HistoryComponent implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly calendarClear = inject(CalendarClear);
+  readonly calendarHeader = PriceHuntCalendarHeader;
+  @ViewChild('picker') private picker?: MatDateRangePicker<Date>;
   private readonly dialog = inject(MatDialog);
   readonly i18n = inject(LanguageService);
   private readonly reload$ = new Subject<void>();
@@ -63,12 +70,13 @@ export class HistoryComponent implements OnInit {
   private sortDir: 'asc' | 'desc' = 'desc';
 
   readonly submitted = signal(false);
+  /** Archive filters are optional — empty means “no constraint”. */
   readonly filters = new FormGroup({
-    fromDate: new FormControl<Date | null>(null, Validators.required),
-    toDate: new FormControl<Date | null>(null, [Validators.required, endNotBeforeStart()]),
-    suppliers: new FormControl<string[]>([], { nonNullable: true, validators: [Validators.required] }),
-    fromLocation: new FormControl('', { nonNullable: true, validators: [Validators.required, knownPlaceValidator()] }),
-    toLocation: new FormControl('', { nonNullable: true, validators: [Validators.required, knownPlaceValidator(), differentPlaceValidator()] }),
+    fromDate: new FormControl<Date | null>(null),
+    toDate: new FormControl<Date | null>(null, [endNotBeforeStart()]),
+    suppliers: new FormControl<string[]>([], { nonNullable: true }),
+    fromLocation: new FormControl('', { nonNullable: true, validators: [knownPlaceValidator()] }),
+    toLocation: new FormControl('', { nonNullable: true, validators: [knownPlaceValidator(), differentPlaceValidator()] }),
   });
 
   constructor() {
@@ -89,10 +97,11 @@ export class HistoryComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.api.suppliers().subscribe(names => {
-      this.suppliers.set(names);
-      this.filters.controls.suppliers.setValue(names);
-    });
+    this.calendarClear.run = () => {
+      this.clearDates();
+      this.picker?.close();
+    };
+    this.api.suppliers().subscribe(names => this.suppliers.set(names));
     this.filters.controls.fromDate.valueChanges.subscribe(start => {
       this.rangeStart.set(start);
       const end = this.filters.controls.toDate;
@@ -113,21 +122,42 @@ export class HistoryComponent implements OnInit {
 
   supplierLabel(): string {
     const selected = this.filters.controls.suppliers.value;
-    if (selected.length === 0) return '';
+    const total = this.suppliers().length;
+    if (selected.length === 0 || (total > 0 && selected.length === total)) return this.i18n.t('all');
     if (selected.length === 1) return selected[0];
     return this.i18n.t('supplierCount', { count: selected.length });
+  }
+
+  allSelected(): boolean {
+    const names = this.suppliers();
+    const selected = this.filters.controls.suppliers.value;
+    return names.length > 0 && selected.length === names.length;
+  }
+
+  someSelected(): boolean {
+    const selected = this.filters.controls.suppliers.value;
+    return selected.length > 0 && !this.allSelected();
+  }
+
+  setAll(selected: boolean): void {
+    this.filters.controls.suppliers.setValue(selected ? [...this.suppliers()] : []);
+    this.filters.controls.suppliers.markAsTouched();
   }
 
   clearSuppliers(event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
-    this.filters.controls.suppliers.setValue([]);
-    this.filters.controls.suppliers.markAsTouched();
+    this.setAll(false);
   }
 
   clearDates(): void {
     this.filters.controls.fromDate.setValue(null);
     this.filters.controls.toDate.setValue(null);
+    this.paintDates();
+  }
+
+  paintDates(): void {
+    paintDateMirrors(this.host.nativeElement);
   }
 
   apply(): void {
@@ -135,6 +165,15 @@ export class HistoryComponent implements OnInit {
     this.filters.markAllAsTouched();
     this.filters.controls.toDate.updateValueAndValidity();
     this.filters.controls.toLocation.updateValueAndValidity();
+
+    const from = this.filters.controls.fromDate.value;
+    const to = this.filters.controls.toDate.value;
+    if ((from && !to) || (!from && to)) {
+      if (!from) this.filters.controls.fromDate.setErrors({ required: true });
+      if (!to) this.filters.controls.toDate.setErrors({ ...(this.filters.controls.toDate.errors ?? {}), required: true });
+      return;
+    }
+
     if (this.filters.invalid) return;
     this.pageIndex.set(0);
     this.reload$.next();
@@ -145,7 +184,7 @@ export class HistoryComponent implements OnInit {
     this.filters.reset({
       fromDate: null,
       toDate: null,
-      suppliers: this.suppliers(),
+      suppliers: [],
       fromLocation: '',
       toLocation: '',
     });
@@ -180,7 +219,7 @@ export class HistoryComponent implements OnInit {
         responseTimeMs: row.responseTimeMs,
         outcome: row.succeeded ? 'ok' : this.isNoResponse(row) ? 'noResponse' : 'failed',
         error: row.succeeded ? null : row.error,
-        seed: `${row.supplier}|${row.fromLocation}|${row.toLocation}|${row.timestampUtc}`,
+        seed: `${row.searchId}|${row.fromLocation}|${row.toLocation}`,
       },
     });
   }
@@ -197,10 +236,14 @@ export class HistoryComponent implements OnInit {
 
   private currentFilter(): HistoryFilter {
     const v = this.filters.getRawValue();
+    const all = this.suppliers();
+    const selected = v.suppliers;
+    const suppliers =
+      selected.length === 0 || (all.length > 0 && selected.length === all.length) ? [] : selected;
     return {
       startDate: v.fromDate ? toIsoDate(v.fromDate) : undefined,
       endDate: v.toDate ? toIsoDate(v.toDate) : undefined,
-      suppliers: v.suppliers,
+      suppliers,
       fromLocation: v.fromLocation.trim() ? canonicalPlace(v.fromLocation) : undefined,
       toLocation: v.toLocation.trim() ? canonicalPlace(v.toLocation) : undefined,
       sortBy: this.sortBy,

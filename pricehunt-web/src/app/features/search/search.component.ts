@@ -5,11 +5,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatCardModule } from '@angular/material/card';
-import { MAT_DATE_RANGE_SELECTION_STRATEGY, MatDatepickerIntl, MatDatepickerModule } from '@angular/material/datepicker';
+import { MAT_DATE_RANGE_SELECTION_STRATEGY, MatDateRangePicker, MatDatepickerIntl, MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { PriceHuntDatepickerIntl } from '../../core/i18n/datepicker-intl';
@@ -19,11 +20,12 @@ import { canonicalPlace, differentPlaceValidator, knownPlaceValidator, placeLabe
 import { isCurrentSearch } from '../../core/search-generation';
 import { SearchStreamService } from '../../core/search-stream.service';
 import { LockedStartRangeStrategy } from '../../core/locked-start-range';
-import { trackingIds } from '../../core/tracking';
+import { trackingIds, supplierCode } from '../../core/tracking';
 import { PlaceFieldComponent } from '../../shared/place-field/place-field.component';
 import { SupplierDetailDialog } from '../../shared/supplier-detail/supplier-detail.dialog';
 import { TrackingMapComponent } from '../../shared/tracking-map/tracking-map.component';
-import { endNotBeforeStart, startOfDay, toIsoDate } from '../../core/utils';
+import { CalendarClear, PriceHuntCalendarHeader, paintDateMirrors } from '../../shared/calendar-header/calendar-header.component';
+import { endNotBeforeStart, notInPast, startOfDay, toIsoDate, todayStart } from '../../core/utils';
 
 type UiState = 'idle' | 'searching' | 'completed' | 'timedOut' | 'cancelled' | 'error';
 
@@ -42,12 +44,13 @@ const ROW_STEP = 84;
   imports: [
     ReactiveFormsModule, CurrencyPipe, DecimalPipe,
     MatCardModule, MatFormFieldModule, MatInputModule, MatDatepickerModule,
-    MatButtonModule, MatCheckboxModule, MatIconModule, MatProgressBarModule, MatDialogModule,
+    MatButtonModule, MatCheckboxModule, MatIconModule, MatSelectModule, MatProgressBarModule, MatDialogModule,
     PlaceFieldComponent, TrackingMapComponent,
   ],
   templateUrl: './search.component.html',
   styleUrl: './search.component.scss',
   providers: [
+    CalendarClear,
     { provide: MatDatepickerIntl, useClass: PriceHuntDatepickerIntl },
     { provide: MAT_DATE_RANGE_SELECTION_STRATEGY, useClass: LockedStartRangeStrategy },
   ],
@@ -58,26 +61,22 @@ export class SearchComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly host = inject(ElementRef<HTMLElement>);
   readonly i18n = inject(LanguageService);
+  private readonly calendarClear = inject(CalendarClear);
+  readonly calendarHeader = PriceHuntCalendarHeader;
   @ViewChild(FormGroupDirective) private formDirective?: FormGroupDirective;
+  @ViewChild('picker') private picker?: MatDateRangePicker<Date>;
   private subscription?: Subscription;
   private generation = 0;
 
   readonly rowStep = ROW_STEP;
   readonly supplierNames = signal<string[]>([]);
-  readonly supplierQuery = signal('');
-  readonly visibleSuppliers = computed(() => {
-    const query = this.supplierQuery().trim().toLowerCase();
-    const names = this.supplierNames();
-    if (!query) return names;
-    return names.filter(name => name.toLowerCase().includes(query));
-  });
 
   readonly submitted = signal(false);
   readonly form = new FormGroup({
     fromLocation: new FormControl('', { nonNullable: true, validators: [Validators.required, knownPlaceValidator()] }),
     toLocation: new FormControl('', { nonNullable: true, validators: [Validators.required, knownPlaceValidator(), differentPlaceValidator()] }),
-    fromDate: new FormControl<Date | null>(null, Validators.required),
-    toDate: new FormControl<Date | null>(null, [Validators.required, endNotBeforeStart()]),
+    fromDate: new FormControl<Date | null>(null, [Validators.required, notInPast()]),
+    toDate: new FormControl<Date | null>(null, [Validators.required, notInPast(), endNotBeforeStart()]),
     suppliers: new FormControl<string[]>([], { nonNullable: true, validators: [Validators.required] }),
   });
 
@@ -126,6 +125,10 @@ export class SearchComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    this.calendarClear.run = () => {
+      this.clearDates();
+      this.picker?.close();
+    };
     this.api.suppliers().subscribe(names => {
       this.supplierNames.set(names);
       this.form.controls.suppliers.setValue(names);
@@ -145,52 +148,60 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.cancel(false);
   }
 
-  queryText(event: Event): string {
-    return (event.target as HTMLInputElement).value;
+  supplierLabel(): string {
+    const selected = this.form.controls.suppliers.value;
+    const total = this.supplierNames().length;
+    if (selected.length === 0) return '';
+    if (total > 0 && selected.length === total) return this.i18n.t('multipleSelection');
+    if (selected.length === 1) return selected[0];
+    return this.i18n.t('supplierCount', { count: selected.length });
   }
 
-  isPicked(name: string): boolean {
-    return this.form.controls.suppliers.value.includes(name);
+  allSelected(): boolean {
+    const names = this.supplierNames();
+    return names.length > 0 && this.form.controls.suppliers.value.length === names.length;
   }
 
-  allVisibleSelected(): boolean {
-    const visible = this.visibleSuppliers();
-    return visible.length > 0 && visible.every(name => this.isPicked(name));
+  someSelected(): boolean {
+    const count = this.form.controls.suppliers.value.length;
+    return count > 0 && count < this.supplierNames().length;
   }
 
-  someVisibleSelected(): boolean {
-    const visible = this.visibleSuppliers();
-    const picked = visible.filter(name => this.isPicked(name)).length;
-    return picked > 0 && picked < visible.length;
-  }
-
-  setVisible(selected: boolean): void {
-    const visible = new Set(this.visibleSuppliers());
-    const current = this.form.controls.suppliers.value;
-    const next = selected
-      ? [...new Set([...current, ...this.visibleSuppliers()])]
-      : current.filter(name => !visible.has(name));
-    this.form.controls.suppliers.setValue(next);
+  setAll(selected: boolean): void {
+    this.form.controls.suppliers.setValue(selected ? [...this.supplierNames()] : []);
     this.form.controls.suppliers.markAsTouched();
   }
 
-  toggleSupplier(name: string): void {
-    const current = this.form.controls.suppliers.value;
-    const next = current.includes(name) ? current.filter(item => item !== name) : [...current, name];
-    this.form.controls.suppliers.setValue(next);
-    this.form.controls.suppliers.markAsTouched();
+  clearSuppliers(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.setAll(false);
   }
 
   private readonly rangeStart = signal<Date | null>(null);
-  readonly blockBeforeStart = computed(() => {
+  /** Today onward; end date also cannot precede the chosen start. */
+  readonly liveDateFilter = computed(() => {
     const start = this.rangeStart();
-    return (date: Date | null): boolean => !start || !date || startOfDay(date) >= startOfDay(start);
+    const today = todayStart();
+    return (date: Date | null): boolean => {
+      if (!date) return false;
+      const day = startOfDay(date);
+      if (day < today) return false;
+      if (start && day < startOfDay(start)) return false;
+      return true;
+    };
   });
 
   clearDates(): void {
     this.form.controls.fromDate.setValue(null);
     this.form.controls.toDate.setValue(null);
     this.form.controls.fromDate.markAsTouched();
+    this.paintDates();
+  }
+
+  /** Show a calendar selection at full width without waiting for a click in the field. */
+  paintDates(): void {
+    paintDateMirrors(this.host.nativeElement);
   }
 
   /** Wipe the form and any results. Suppliers return to the default: all selected. */
@@ -203,7 +214,6 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.errorMessage.set(null);
     this.state.set('idle');
     this.rangeStart.set(null);
-    this.supplierQuery.set('');
     this.formDirective?.resetForm({
       fromLocation: '',
       toLocation: '',
@@ -262,14 +272,15 @@ export class SearchComponent implements OnInit, OnDestroy {
     if (markCancelled && this.isSearching()) this.state.set('cancelled');
   }
 
-  waybill(supplier: string): string {
-    return trackingIds(this.trackingSeed(supplier)).waybill;
+  waybill(): string {
+    return trackingIds(this.trackSeed()).waybill;
   }
 
-  trackingSeed(supplier: string): string {
-    return `${supplier}|${this.trackSeed()}`;
+  supplierId(name: string): string {
+    return supplierCode(name);
   }
 
+  /** One shipment reference for the whole search — shared across every supplier quote. */
   trackSeed(): string {
     const v = this.form.getRawValue();
     const from = v.fromDate ? toIsoDate(v.fromDate) : '';
@@ -296,7 +307,7 @@ export class SearchComponent implements OnInit, OnDestroy {
         responseTimeMs: result?.responseTimeMs ?? null,
         outcome: result?.outcome ?? 'searching',
         error: result && !result.succeeded ? this.detail(result) : null,
-        seed: this.trackingSeed(slot.supplier),
+        seed: this.trackSeed(),
       },
     });
   }
