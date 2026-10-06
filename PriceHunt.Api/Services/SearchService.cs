@@ -203,8 +203,11 @@ public sealed class SearchService
                 return;
             }
 
+            // Per-attempt timeout only when retry is enabled. With MaxAttempts=1 the search
+            // deadline alone cancels work, so silent suppliers become "no response" / TimedOut.
             using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            attemptCts.CancelAfter(_execution.AttemptTimeout);
+            if (_execution.MaxAttempts > 1)
+                attemptCts.CancelAfter(_execution.AttemptTimeout);
             try
             {
                 var price = await supplier.GetPriceAsync(criteria, attemptCts.Token);

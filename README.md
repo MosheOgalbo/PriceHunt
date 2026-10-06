@@ -9,7 +9,7 @@ The assignment asks for **.NET 8 or later** and **Angular 17 or later**. This re
 | Area | Technology |
 | --- | --- |
 | API | .NET 8, ASP.NET Core minimal APIs, EF Core 8 + SQLite, SSE (`text/event-stream`) + `Channel<T>` |
-| Resilience | Per-supplier attempt timeout (5.5s inside a hard 6s search). Default `MaxAttempts = 1` (no retry). Optional retry via `MaxAttempts = 2` in tests |
+| Resilience | Hard 6s search deadline. Default `MaxAttempts = 1` (no retry; silent suppliers → Timed out). Optional retry uses a per-attempt timeout (`MaxAttempts = 2` in tests) |
 | Money | Stored as integer **cents** (`PriceCents`); API/UI expose decimal dollars |
 | Web | Angular 17, Material 17, RxJS, EN/HE/RU/AR (+ RTL), day/night theme |
 | Tests | xUnit (API), Karma/Jasmine (web) |
